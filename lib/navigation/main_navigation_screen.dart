@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
+
 import '../homepage/home_page.dart';
-// import 'movies_page.dart';
-// import 'cinemas_page.dart';
-// import 'tickets_page.dart';
 
 class MainNavigationScreen extends StatefulWidget {
   const MainNavigationScreen({super.key});
@@ -14,19 +12,18 @@ class MainNavigationScreen extends StatefulWidget {
 class _MainNavigationScreenState extends State<MainNavigationScreen> {
   int _currentTabIndex = 0;
 
-  // Список страниц для навигации
+  static const _textStyle = TextStyle(
+    fontSize: 22,
+    fontWeight: FontWeight.w500,
+    color: Colors.white70,
+  );
+
   late final List<Widget> _pages = <Widget>[
     const HomePage(),
-    const Center(child: Text('Movies Page', style: _textStyle)),
-    const Center(child: Text('Cinemas Page', style: _textStyle)),
-    const Center(child: Text('My Tickets Page', style: _textStyle)),
+    const Center(child: Text('Избранные (заглушка)', style: _textStyle)),
+    const Center(child: Text('Билеты (заглушка)', style: _textStyle)),
+    const Center(child: Text('Профиль (заглушка)', style: _textStyle)),
   ];
-
-  static const TextStyle _textStyle = TextStyle(
-    fontSize: 24,
-    fontWeight: FontWeight.bold,
-    color: Colors.white,
-  );
 
   void _onTabTapped(int index) {
     setState(() {
@@ -37,32 +34,35 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // Текущая страница отображается здесь
       body: _pages[_currentTabIndex],
-
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentTabIndex,
         onTap: _onTabTapped,
         type: BottomNavigationBarType.fixed,
         backgroundColor: const Color(0xFF1E1E1E),
-        selectedItemColor: Colors.amber,
-        unselectedItemColor: Colors.grey,
+        selectedItemColor: const Color(0xFFE50914),
+        unselectedItemColor: Colors.white54,
+        selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600),
         items: const [
           BottomNavigationBarItem(
-            icon: Icon(Icons.home_rounded),
-            label: 'Home',
+            icon: Icon(Icons.home_outlined),
+            activeIcon: Icon(Icons.home_rounded),
+            label: 'Домой',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.local_movies_rounded),
-            label: 'Movies',
+            icon: Icon(Icons.favorite_border_rounded),
+            activeIcon: Icon(Icons.favorite_rounded),
+            label: 'Избранные',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.place_rounded),
-            label: 'Cinemas',
+            icon: Icon(Icons.airplane_ticket_outlined),
+            activeIcon: Icon(Icons.airplane_ticket_rounded),
+            label: 'Билеты',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.confirmation_number_rounded),
-            label: 'Tickets',
+            icon: Icon(Icons.person_outline_rounded),
+            activeIcon: Icon(Icons.person_rounded),
+            label: 'Профиль',
           ),
         ],
       ),
