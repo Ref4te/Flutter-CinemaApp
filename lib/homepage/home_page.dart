@@ -34,6 +34,7 @@ class _HomePageState extends State<HomePage> {
   ];
 
   final List<String> _categories = const [
+    'Все',
     'Экшн',
     'Комедия',
     'Блокбастер',
@@ -45,23 +46,53 @@ class _HomePageState extends State<HomePage> {
       title: 'Звездные войны',
       imageUrl:
           'https://images.unsplash.com/photo-1536440136628-849c177e76a1?auto=format&fit=crop&w=900&q=80',
+      category: 'Блокбастер',
+      year: 1977,
+      duration: '2ч 1м',
+      rating: 8.6,
+      description:
+          'Эпическая космоопера о борьбе повстанцев против Галактической Империи. Классика научной фантастики с харизматичными героями.',
     ),
     _MovieItem(
       title: 'Достать ножи',
       imageUrl:
           'https://images.unsplash.com/photo-1478720568477-152d9b164e26?auto=format&fit=crop&w=900&q=80',
+      category: 'Комедия',
+      year: 2019,
+      duration: '2ч 10м',
+      rating: 7.9,
+      description:
+          'Ироничный детектив о расследовании смерти знаменитого писателя. Каждый член семьи — подозреваемый, и у каждого есть мотив.',
     ),
     _MovieItem(
       title: 'Вперед',
       imageUrl:
           'https://images.unsplash.com/photo-1503095396549-807759245b35?auto=format&fit=crop&w=900&q=80',
+      category: 'Романы',
+      year: 2020,
+      duration: '1ч 42м',
+      rating: 7.4,
+      description:
+          'Трогательная история о двух братьях-эльфах, которые отправляются в магическое приключение, чтобы провести день с отцом.',
     ),
     _MovieItem(
       title: 'Мулан',
       imageUrl:
           'https://images.unsplash.com/photo-1485846234645-a62644f84728?auto=format&fit=crop&w=900&q=80',
+      category: 'Экшн',
+      year: 2020,
+      duration: '1ч 55м',
+      rating: 6.7,
+      description:
+          'Воинственная героиня отправляется на войну вместо отца и доказывает, что сила духа важнее любых ожиданий общества.',
     ),
   ];
+
+  List<_MovieItem> get _filteredMovies {
+    final selectedCategory = _categories[_activeCategoryIndex];
+    if (selectedCategory == 'Все') return _movies;
+    return _movies.where((movie) => movie.category == selectedCategory).toList();
+  }
 
   @override
   void dispose() {
@@ -174,7 +205,8 @@ class _HomePageState extends State<HomePage> {
                     margin: const EdgeInsets.symmetric(horizontal: 4),
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color: isSelected ? const Color(0xFFE53935) : const Color(0xFF5F5F5F),
+                      color:
+                          isSelected ? const Color(0xFFE53935) : const Color(0xFF5F5F5F),
                     ),
                   );
                 }),
@@ -197,9 +229,10 @@ class _HomePageState extends State<HomePage> {
                           color: isSelected ? const Color(0x33E53935) : const Color(0xFF1E1E1E),
                           borderRadius: BorderRadius.circular(14),
                           border: Border.all(
-                            color: isSelected
-                                ? const Color(0xFFE53935)
-                                : const Color(0xFF333333),
+                            color:
+                                isSelected
+                                    ? const Color(0xFFE53935)
+                                    : const Color(0xFF333333),
                           ),
                         ),
                         alignment: Alignment.center,
@@ -207,9 +240,10 @@ class _HomePageState extends State<HomePage> {
                           _categories[index],
                           style: TextStyle(
                             fontSize: 16,
-                            color: isSelected
-                                ? const Color(0xFFE53935)
-                                : const Color(0xFF9A9A9A),
+                            color:
+                                isSelected
+                                    ? const Color(0xFFE53935)
+                                    : const Color(0xFF9A9A9A),
                             fontWeight: FontWeight.w500,
                           ),
                         ),
@@ -220,7 +254,7 @@ class _HomePageState extends State<HomePage> {
               ),
               const SizedBox(height: 18),
               GridView.builder(
-                itemCount: _movies.length,
+                itemCount: _filteredMovies.length,
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
                 gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
@@ -230,33 +264,128 @@ class _HomePageState extends State<HomePage> {
                   childAspectRatio: 0.62,
                 ),
                 itemBuilder: (context, index) {
-                  final movie = _movies[index];
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(24),
-                          child: _PosterImage(url: movie.imageUrl),
+                  final movie = _filteredMovies[index];
+                  return GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => _MovieDetailsPage(movie: movie),
                         ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        movie.title,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: Color(0xFFB8B8B8),
-                          fontSize: 18,
+                      );
+                    },
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(24),
+                            child: _PosterImage(url: movie.imageUrl),
+                          ),
                         ),
-                      ),
-                    ],
+                        const SizedBox(height: 8),
+                        Text(
+                          movie.title,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Color(0xFFB8B8B8),
+                            fontSize: 18,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '${movie.category} • ${movie.year}',
+                          style: const TextStyle(
+                            color: Color(0xFF7D7D7D),
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    ),
                   );
                 },
               ),
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _MovieDetailsPage extends StatelessWidget {
+  const _MovieDetailsPage({required this.movie});
+
+  final _MovieItem movie;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text(movie.title)),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(24),
+              child: SizedBox(
+                height: 260,
+                width: double.infinity,
+                child: _PosterImage(url: movie.imageUrl),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              movie.title,
+              style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 10,
+              runSpacing: 8,
+              children: [
+                _MovieInfoChip(label: movie.category),
+                _MovieInfoChip(label: movie.year.toString()),
+                _MovieInfoChip(label: movie.duration),
+                _MovieInfoChip(label: '⭐ ${movie.rating.toStringAsFixed(1)}'),
+              ],
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Описание',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              movie.description,
+              style: const TextStyle(height: 1.5, color: Color(0xFFB8B8B8), fontSize: 16),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MovieInfoChip extends StatelessWidget {
+  const _MovieInfoChip({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E1E1E),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFF333333)),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(color: Color(0xFFB8B8B8), fontWeight: FontWeight.w500),
       ),
     );
   }
@@ -303,8 +432,21 @@ class _BannerItem {
 }
 
 class _MovieItem {
-  const _MovieItem({required this.title, required this.imageUrl});
+  const _MovieItem({
+    required this.title,
+    required this.imageUrl,
+    required this.category,
+    required this.year,
+    required this.duration,
+    required this.rating,
+    required this.description,
+  });
 
   final String title;
   final String imageUrl;
+  final String category;
+  final int year;
+  final String duration;
+  final double rating;
+  final String description;
 }
