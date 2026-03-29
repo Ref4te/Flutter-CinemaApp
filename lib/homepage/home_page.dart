@@ -13,34 +13,84 @@ class HomePage extends StatelessWidget {
           height: 60,
         ),
         centerTitle: true,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.settings),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const SettingsPage()),
-              );
-            },
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: const [
+          _PromoCard(),
+          SizedBox(height: 16),
+          _SectionTitle('Скоро в кино'),
+          SizedBox(height: 8),
+          _PlaceholderMovieTile(
+            title: 'Dune: Part Three',
+            subtitle: 'Премьера: 12.10.2026 (заглушка)',
+          ),
+          _PlaceholderMovieTile(
+            title: 'Avatar: New Tide',
+            subtitle: 'Премьера: 18.11.2026 (заглушка)',
           ),
         ],
-      ),
-      body: const Center(
-        child: Text('Главная страница'),
       ),
     );
   }
 }
 
-// Экран настроек
-class SettingsPage extends StatelessWidget {
-  const SettingsPage({super.key});
+class _PromoCard extends StatelessWidget {
+  const _PromoCard();
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Настройки')),
-      body: const Center(child: Text('Тут будут настройки')),
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Добро пожаловать в CinemaApp',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Данные фильмов и афиши сейчас работают на заглушках. '
+              'Подключение БД/API добавим позже.',
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SectionTitle extends StatelessWidget {
+  const _SectionTitle(this.title);
+
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      title,
+      style: Theme.of(context).textTheme.titleMedium,
+    );
+  }
+}
+
+class _PlaceholderMovieTile extends StatelessWidget {
+  const _PlaceholderMovieTile({required this.title, required this.subtitle});
+
+  final String title;
+  final String subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.symmetric(vertical: 6),
+      child: ListTile(
+        leading: const Icon(Icons.local_movies_rounded, color: Colors.amber),
+        title: Text(title),
+        subtitle: Text(subtitle),
+      ),
     );
   }
 }
