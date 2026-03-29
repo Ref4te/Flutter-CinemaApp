@@ -141,7 +141,7 @@ class _HomePageState extends State<HomePage> {
                       style: TextStyle(color: Color(0xFFB0B0B0)),
                     ),
                     TextSpan(
-                      text: 'Коршиш',
+                      text: 'Көрщищ',
                       style: TextStyle(color: Color(0xFFE53935)),
                     ),
                   ],

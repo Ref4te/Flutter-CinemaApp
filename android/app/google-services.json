@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "942853872721",
+    "project_id": "cinemabooking-app",
+    "storage_bucket": "cinemabooking-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:942853872721:android:67f2eebb48e7d5c0a9ec70",
+        "android_client_info": {
+          "package_name": "com.korshish.booking_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBHXS2zLMNRTu3NV2_v330gq5iZ4RHum60"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

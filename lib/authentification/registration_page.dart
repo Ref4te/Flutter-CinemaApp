@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:firebase_auth/firebase_auth.dart'; // Импорт Firebase Auth
 import '../local_library/components.dart';
 import '../navigation/main_navigation_screen.dart';
-//import 'login_page.dart';
 
 class RegistrationPage extends StatelessWidget {
   const RegistrationPage({super.key});
@@ -10,6 +10,7 @@ class RegistrationPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      // Устанавливаем заголовок в AppBar
       appBar: AppBar(title: const Text('Sign Up')),
       body: const Center(
         child: SingleChildScrollView(
@@ -28,60 +29,99 @@ class SignUpForm extends StatefulWidget {
 }
 
 class _SignUpFormState extends State<SignUpForm> {
+  // Контроллеры для захвата текста из полей
   final TextEditingController _firstNameController = TextEditingController();
   final TextEditingController _lastNameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _confirmPasswordController = TextEditingController();
 
-  // --- ЛОГИКА ВАЛИДАЦИИ ДЛЯ РЕГИСТРАЦИИ ---
-  void _handleSignUp() {
+  bool _isLoading = false; // Переменная для управления индикатором загрузки
+
+  // --- ЛОГИКА РЕГИСТРАЦИИ В FIREBASE ---
+  Future<void> _handleSignUp() async {
     String firstName = _firstNameController.text.trim();
     String lastName = _lastNameController.text.trim();
     String email = _emailController.text.trim();
     String password = _passwordController.text.trim();
     String confirmPassword = _confirmPasswordController.text.trim();
 
-    // 1. Проверка на пустые поля
+    // 1. ПЕРВИЧНАЯ ВАЛИДАЦИЯ
     if (firstName.isEmpty || lastName.isEmpty || email.isEmpty || password.isEmpty) {
       showMessage(context, "All fields are required");
       return;
     }
 
-    // 2. Твоё условие для почты (gmail.com или mail.ru)
+    // Проверка формата почты (твое условие: gmail или mail.ru)
     final emailRegex = RegExp(r'^[\w-\.]+@(gmail\.com|mail\.ru)$');
     if (!emailRegex.hasMatch(email)) {
       showMessage(context, "Invalid email format (use gmail.com or mail.ru)");
       return;
     }
 
-    // 3. Минимальная длина пароля
     if (password.length < 6) {
       showMessage(context, "Password must be at least 6 characters");
       return;
     }
 
-    // 4. Совпадение паролей
     if (password != confirmPassword) {
       showMessage(context, "Passwords do not match");
       return;
     }
 
-    showMessage(context,"Sign Up Success! ✅", isError: false);
-    print("User: $firstName $lastName, Email: $email");
-    Navigator.pushAndRemoveUntil(
-      context,
-      MaterialPageRoute(builder: (context) => const MainNavigationScreen()),
-          (route) => false, // Это удалит экран логина из памяти, чтобы нельзя было вернуться назад
-    );
+    // 2. ОТПРАВКА ДАННЫХ В FIREBASE
+    setState(() => _isLoading = true); // Включаем "крутилку"
+
+    try {
+      // Создаем пользователя в системе аутентификации
+      UserCredential userCredential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+
+      // --- СОХРАНЕНИЕ ИМЕНИ И ФАМИЛИИ (ЗАГЛУШКА) ---
+      // Мы записываем имя и фамилию в стандартное поле displayName
+      await userCredential.user?.updateDisplayName("$firstName $lastName");
+
+      // Принудительно обновляем данные пользователя, чтобы изменения применились сразу
+      await userCredential.user?.reload();
+
+      if (!mounted) return;
+
+      showMessage(context, "Welcome, $firstName! ✅", isError: false);
+
+      // 3. ПЕРЕХОД НА ГЛАВНЫЙ ЭКРАН
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (context) => const MainNavigationScreen()),
+            (route) => false, // Очищаем историю навигации
+      );
+    } on FirebaseAuthException catch (e) {
+      // Обработка ошибок от самого Firebase
+      String message = "Registration failed";
+      if (e.code == 'email-already-in-use') {
+        message = "This email is already in use";
+      } else if (e.code == 'weak-password') {
+        message = "The password is too weak";
+      } else if (e.code == 'invalid-email') {
+        message = "Invalid email address";
+      }
+      showMessage(context, message);
+    } catch (e) {
+      showMessage(context, "An error occurred: ${e.toString()}");
+    } finally {
+      // Выключаем загрузку в любом случае (успех или ошибка)
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   void _navigateToSignIn() {
-    Navigator.pop(context);
+    Navigator.pop(context); // Возвращаемся на экран LoginPage
   }
 
   @override
   void dispose() {
+    // Очищаем контроллеры, чтобы не было утечек памяти
     _firstNameController.dispose();
     _lastNameController.dispose();
     _emailController.dispose();
@@ -102,7 +142,7 @@ class _SignUpFormState extends State<SignUpForm> {
           buildTextField(
             controller: _emailController,
             label: 'Email',
-            formatters: [FilteringTextInputFormatter.deny(RegExp(r'\s'))],
+            formatters: [FilteringTextInputFormatter.deny(RegExp(r'\s'))], // Запрет пробелов
           ),
           buildTextField(
             controller: _passwordController,
@@ -116,16 +156,24 @@ class _SignUpFormState extends State<SignUpForm> {
             isPassword: true,
             formatters: [FilteringTextInputFormatter.deny(RegExp(r'\s'))],
           ),
-          const SizedBox(height: 10),
-          buildButton(
+          const SizedBox(height: 20),
+
+          // Условный рендеринг кнопки или загрузки
+          _isLoading
+              ? const CircularProgressIndicator(color: Color(0xFFE50B14))
+              : buildButton(
             text: "Sign Up",
             color: const Color(0xFFE50B14),
-            onPressed: _handleSignUp, // Теперь вызывает функцию с проверками
+            onPressed: _handleSignUp,
           ),
+
+          const SizedBox(height: 10),
           TextButton(
             onPressed: _navigateToSignIn,
-            child: const Text("Already have an account? Sign In",
-                style: TextStyle(color: Colors.black54)),
+            child: const Text(
+              "Already have an account? Sign In",
+              style: TextStyle(color: Colors.white70),
+            ),
           ),
         ],
       ),
