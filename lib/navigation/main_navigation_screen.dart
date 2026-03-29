@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
+import '../favorites/favorites_page.dart';
 import '../homepage/home_page.dart';
-import '../settings/settings_page.dart';
+import '../profile/profile_page.dart';
+import '../tickets/tickets_page.dart';
 
 class MainNavigationScreen extends StatefulWidget {
   const MainNavigationScreen({super.key});
@@ -15,16 +17,10 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
 
   late final List<Widget> _pages = <Widget>[
     const HomePage(),
-    const Center(child: Text('Избранные фильмы', style: _textStyle)),
-    const Center(child: Text('Ваши билеты', style: _textStyle)),
-    const SettingsPage(),
+    const FavoritesPage(),
+    const TicketsPage(),
+    const ProfilePage(),
   ];
-
-  static const TextStyle _textStyle = TextStyle(
-    fontSize: 24,
-    fontWeight: FontWeight.bold,
-    color: Colors.white,
-  );
 
   void _onTabTapped(int index) {
     setState(() {

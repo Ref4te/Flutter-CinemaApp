@@ -6,29 +6,29 @@ class SettingsPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Настройки')),
+      appBar: AppBar(title: const Text('Настройка профиля')),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: const [
           _SettingsTile(
-            icon: Icons.language,
-            title: 'Язык интерфейса',
-            subtitle: 'Русский',
+            icon: Icons.edit_outlined,
+            title: 'Имя профиля',
+            subtitle: 'Гость Кинотеатра (заглушка, сохранение позже через API)',
           ),
           _SettingsTile(
-            icon: Icons.notifications_none,
-            title: 'Уведомления',
-            subtitle: 'Включены',
+            icon: Icons.email_outlined,
+            title: 'Email',
+            subtitle: 'user_placeholder@cinema.app (данные пока из заглушки)',
           ),
           _SettingsTile(
-            icon: Icons.dark_mode_outlined,
-            title: 'Тема',
-            subtitle: 'Тёмная',
+            icon: Icons.lock_outline,
+            title: 'Пароль и безопасность',
+            subtitle: 'Раздел появится после интеграции backend/API',
           ),
           _SettingsTile(
-            icon: Icons.info_outline,
-            title: 'О приложении',
-            subtitle: 'Тут позже будет информация и API настройки',
+            icon: Icons.sync_problem_outlined,
+            title: 'Синхронизация данных',
+            subtitle: 'Сейчас используется локальный mock без БД',
           ),
         ],
       ),
