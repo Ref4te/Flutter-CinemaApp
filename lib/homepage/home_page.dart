@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
 import '../settings/settings_page.dart';
+import 'movie_details_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -34,32 +35,57 @@ class _HomePageState extends State<HomePage> {
   ];
 
   final List<String> _categories = const [
+    'Все',
     'Экшн',
     'Комедия',
     'Блокбастер',
     'Романы',
   ];
 
-  final List<_MovieItem> _movies = const [
-    _MovieItem(
+  final List<MovieDetails> _movies = const [
+    MovieDetails(
       title: 'Звездные войны',
       imageUrl:
           'https://images.unsplash.com/photo-1536440136628-849c177e76a1?auto=format&fit=crop&w=900&q=80',
+      category: 'Блокбастер',
+      year: 1977,
+      duration: '2ч 1м',
+      rating: 8.6,
+      description:
+          'Эпическое космическое приключение о борьбе повстанцев против Империи и пути героя Люка Скайуокера.',
     ),
-    _MovieItem(
+    MovieDetails(
       title: 'Достать ножи',
       imageUrl:
           'https://images.unsplash.com/photo-1478720568477-152d9b164e26?auto=format&fit=crop&w=900&q=80',
+      category: 'Комедия',
+      year: 2019,
+      duration: '2ч 10м',
+      rating: 7.9,
+      description:
+          'Ироничный детектив о расследовании загадочной смерти писателя в кругу его эксцентричной семьи.',
     ),
-    _MovieItem(
+    MovieDetails(
       title: 'Вперед',
       imageUrl:
           'https://images.unsplash.com/photo-1503095396549-807759245b35?auto=format&fit=crop&w=900&q=80',
+      category: 'Романы',
+      year: 2020,
+      duration: '1ч 42м',
+      rating: 7.4,
+      description:
+          'Трогательная история о братьях, которые отправляются в волшебное путешествие, чтобы снова увидеть отца.',
     ),
-    _MovieItem(
+    MovieDetails(
       title: 'Мулан',
       imageUrl:
           'https://images.unsplash.com/photo-1485846234645-a62644f84728?auto=format&fit=crop&w=900&q=80',
+      category: 'Экшн',
+      year: 2020,
+      duration: '1ч 55м',
+      rating: 6.8,
+      description:
+          'Юная воительница скрывает личность и отправляется на войну, чтобы защитить семью и честь своего народа.',
     ),
   ];
 
@@ -72,6 +98,10 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final selectedCategory = _categories[_activeCategoryIndex];
+    final filteredMovies = selectedCategory == 'Все'
+        ? _movies
+        : _movies.where((movie) => movie.category == selectedCategory).toList();
 
     return Scaffold(
       appBar: AppBar(
@@ -220,7 +250,7 @@ class _HomePageState extends State<HomePage> {
               ),
               const SizedBox(height: 18),
               GridView.builder(
-                itemCount: _movies.length,
+                itemCount: filteredMovies.length,
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
                 gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
@@ -230,27 +260,37 @@ class _HomePageState extends State<HomePage> {
                   childAspectRatio: 0.62,
                 ),
                 itemBuilder: (context, index) {
-                  final movie = _movies[index];
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(24),
-                          child: _PosterImage(url: movie.imageUrl),
+                  final movie = filteredMovies[index];
+                  return GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => MovieDetailsPage(movie: movie),
                         ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        movie.title,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: Color(0xFFB8B8B8),
-                          fontSize: 18,
+                      );
+                    },
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(24),
+                            child: _PosterImage(url: movie.imageUrl),
+                          ),
                         ),
-                      ),
-                    ],
+                        const SizedBox(height: 8),
+                        Text(
+                          movie.title,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Color(0xFFB8B8B8),
+                            fontSize: 18,
+                          ),
+                        ),
+                      ],
+                    ),
                   );
                 },
               ),
@@ -297,13 +337,6 @@ class _PosterImage extends StatelessWidget {
 
 class _BannerItem {
   const _BannerItem({required this.title, required this.imageUrl});
-
-  final String title;
-  final String imageUrl;
-}
-
-class _MovieItem {
-  const _MovieItem({required this.title, required this.imageUrl});
 
   final String title;
   final String imageUrl;
