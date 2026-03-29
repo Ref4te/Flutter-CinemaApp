@@ -34,34 +34,69 @@ class _HomePageState extends State<HomePage> {
   ];
 
   final List<String> _categories = const [
+    'Все',
     'Экшн',
     'Комедия',
     'Блокбастер',
-    'Романы',
+    'Романтика',
   ];
 
   final List<_MovieItem> _movies = const [
     _MovieItem(
       title: 'Звездные войны',
+      category: 'Блокбастер',
+      year: 1977,
+      duration: '2ч 1м',
+      rating: 8.6,
+      description:
+          'Эпическая космическая сага о борьбе повстанцев с Галактической Империей и пути героя Люка Скайуокера.',
       imageUrl:
           'https://images.unsplash.com/photo-1536440136628-849c177e76a1?auto=format&fit=crop&w=900&q=80',
     ),
     _MovieItem(
       title: 'Достать ножи',
+      category: 'Комедия',
+      year: 2019,
+      duration: '2ч 10м',
+      rating: 7.9,
+      description:
+          'Остроумный детектив о расследовании загадочного убийства в богатой и весьма эксцентричной семье.',
       imageUrl:
           'https://images.unsplash.com/photo-1478720568477-152d9b164e26?auto=format&fit=crop&w=900&q=80',
     ),
     _MovieItem(
       title: 'Вперед',
+      category: 'Романтика',
+      year: 2020,
+      duration: '1ч 42м',
+      rating: 7.4,
+      description:
+          'Трогательное приключение о двух братьях, которые отправляются в магическое путешествие ради семьи.',
       imageUrl:
           'https://images.unsplash.com/photo-1503095396549-807759245b35?auto=format&fit=crop&w=900&q=80',
     ),
     _MovieItem(
       title: 'Мулан',
+      category: 'Экшн',
+      year: 2020,
+      duration: '1ч 55м',
+      rating: 7.2,
+      description:
+          'История храброй девушки, которая идет на войну вместо отца и становится легендой своего народа.',
       imageUrl:
           'https://images.unsplash.com/photo-1485846234645-a62644f84728?auto=format&fit=crop&w=900&q=80',
     ),
   ];
+
+  List<_MovieItem> get _filteredMovies {
+    final selectedCategory = _categories[_activeCategoryIndex];
+    if (selectedCategory == 'Все') {
+      return _movies;
+    }
+    return _movies
+        .where((movie) => movie.category == selectedCategory)
+        .toList(growable: false);
+  }
 
   @override
   void dispose() {
@@ -72,6 +107,7 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final filteredMovies = _filteredMovies;
 
     return Scaffold(
       appBar: AppBar(
@@ -220,7 +256,7 @@ class _HomePageState extends State<HomePage> {
               ),
               const SizedBox(height: 18),
               GridView.builder(
-                itemCount: _movies.length,
+                itemCount: filteredMovies.length,
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
                 gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
@@ -230,27 +266,45 @@ class _HomePageState extends State<HomePage> {
                   childAspectRatio: 0.62,
                 ),
                 itemBuilder: (context, index) {
-                  final movie = _movies[index];
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(24),
-                          child: _PosterImage(url: movie.imageUrl),
+                  final movie = filteredMovies[index];
+                  return GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => MovieDetailsPage(movie: movie),
                         ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        movie.title,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: Color(0xFFB8B8B8),
-                          fontSize: 18,
+                      );
+                    },
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(24),
+                            child: _PosterImage(url: movie.imageUrl),
+                          ),
                         ),
-                      ),
-                    ],
+                        const SizedBox(height: 8),
+                        Text(
+                          movie.title,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Color(0xFFB8B8B8),
+                            fontSize: 18,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          movie.category,
+                          style: const TextStyle(
+                            color: Color(0xFF7A7A7A),
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    ),
                   );
                 },
               ),
@@ -303,8 +357,99 @@ class _BannerItem {
 }
 
 class _MovieItem {
-  const _MovieItem({required this.title, required this.imageUrl});
+  const _MovieItem({
+    required this.title,
+    required this.imageUrl,
+    required this.category,
+    required this.year,
+    required this.duration,
+    required this.rating,
+    required this.description,
+  });
 
   final String title;
   final String imageUrl;
+  final String category;
+  final int year;
+  final String duration;
+  final double rating;
+  final String description;
+}
+
+class MovieDetailsPage extends StatelessWidget {
+  const MovieDetailsPage({super.key, required this.movie});
+
+  final _MovieItem movie;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text(movie.title)),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 10, 16, 20),
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(24),
+            child: AspectRatio(
+              aspectRatio: 2 / 3,
+              child: _PosterImage(url: movie.imageUrl),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            movie.title,
+            style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _InfoChip(label: movie.category, icon: Icons.movie_filter_outlined),
+              _InfoChip(label: '${movie.year}', icon: Icons.calendar_month_outlined),
+              _InfoChip(label: movie.duration, icon: Icons.schedule_outlined),
+              _InfoChip(label: '⭐ ${movie.rating}', icon: Icons.star_outline_rounded),
+            ],
+          ),
+          const SizedBox(height: 16),
+          const Text(
+            'Описание',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            movie.description,
+            style: const TextStyle(fontSize: 16, height: 1.4, color: Color(0xFFB8B8B8)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _InfoChip extends StatelessWidget {
+  const _InfoChip({required this.label, required this.icon});
+
+  final String label;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E1E1E),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFF333333)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: const Color(0xFFE53935)),
+          const SizedBox(width: 6),
+          Text(label, style: const TextStyle(color: Color(0xFFD0D0D0))),
+        ],
+      ),
+    );
+  }
 }
