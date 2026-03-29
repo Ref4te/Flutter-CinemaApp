@@ -33,35 +33,64 @@ class _HomePageState extends State<HomePage> {
     ),
   ];
 
-  final List<String> _categories = const [
-    'Экшн',
-    'Комедия',
-    'Блокбастер',
-    'Романы',
-  ];
+  final List<String> _categories = const ['Все', 'Экшн', 'Комедия', 'Блокбастер', 'Романы'];
 
   final List<_MovieItem> _movies = const [
     _MovieItem(
       title: 'Звездные войны',
+      category: 'Блокбастер',
+      year: 2019,
+      duration: '2 ч 22 мин',
+      rating: 8.1,
+      description:
+          'Эпичная космическая сага о противостоянии Света и Тьмы, где судьба галактики решается в последней битве джедаев и ситхов.',
       imageUrl:
           'https://images.unsplash.com/photo-1536440136628-849c177e76a1?auto=format&fit=crop&w=900&q=80',
     ),
     _MovieItem(
       title: 'Достать ножи',
+      category: 'Комедия',
+      year: 2019,
+      duration: '2 ч 10 мин',
+      rating: 7.9,
+      description:
+          'Детективная история с острым юмором, в которой знаменитый сыщик расследует загадочное убийство в богатой семье.',
       imageUrl:
           'https://images.unsplash.com/photo-1478720568477-152d9b164e26?auto=format&fit=crop&w=900&q=80',
     ),
     _MovieItem(
       title: 'Вперед',
+      category: 'Романы',
+      year: 2020,
+      duration: '1 ч 42 мин',
+      rating: 7.4,
+      description:
+          'Трогательная история о семье и дружбе, где герои отправляются в путешествие, чтобы вернуть магию в привычный мир.',
       imageUrl:
           'https://images.unsplash.com/photo-1503095396549-807759245b35?auto=format&fit=crop&w=900&q=80',
     ),
     _MovieItem(
       title: 'Мулан',
+      category: 'Экшн',
+      year: 2020,
+      duration: '1 ч 55 мин',
+      rating: 7.2,
+      description:
+          'Юная воительница отправляется на войну вместо отца и проходит путь от новобранца до легенды, защищая свою страну.',
       imageUrl:
           'https://images.unsplash.com/photo-1485846234645-a62644f84728?auto=format&fit=crop&w=900&q=80',
     ),
   ];
+
+  List<_MovieItem> get _filteredMovies {
+    final selectedCategory = _categories[_activeCategoryIndex];
+    if (selectedCategory == 'Все') {
+      return _movies;
+    }
+    return _movies
+        .where((movie) => movie.category == selectedCategory)
+        .toList(growable: false);
+  }
 
   @override
   void dispose() {
@@ -220,7 +249,7 @@ class _HomePageState extends State<HomePage> {
               ),
               const SizedBox(height: 18),
               GridView.builder(
-                itemCount: _movies.length,
+                itemCount: _filteredMovies.length,
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
                 gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
@@ -230,27 +259,46 @@ class _HomePageState extends State<HomePage> {
                   childAspectRatio: 0.62,
                 ),
                 itemBuilder: (context, index) {
-                  final movie = _movies[index];
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(24),
-                          child: _PosterImage(url: movie.imageUrl),
+                  final movie = _filteredMovies[index];
+                  return InkWell(
+                    borderRadius: BorderRadius.circular(24),
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => _MovieDetailsPage(movie: movie),
                         ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        movie.title,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: Color(0xFFB8B8B8),
-                          fontSize: 18,
+                      );
+                    },
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(24),
+                            child: _PosterImage(url: movie.imageUrl),
+                          ),
                         ),
-                      ),
-                    ],
+                        const SizedBox(height: 8),
+                        Text(
+                          movie.title,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Color(0xFFB8B8B8),
+                            fontSize: 18,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          movie.category,
+                          style: const TextStyle(
+                            color: Color(0xFF7E7E7E),
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    ),
                   );
                 },
               ),
@@ -303,8 +351,119 @@ class _BannerItem {
 }
 
 class _MovieItem {
-  const _MovieItem({required this.title, required this.imageUrl});
+  const _MovieItem({
+    required this.title,
+    required this.imageUrl,
+    required this.category,
+    required this.year,
+    required this.duration,
+    required this.rating,
+    required this.description,
+  });
 
   final String title;
   final String imageUrl;
+  final String category;
+  final int year;
+  final String duration;
+  final double rating;
+  final String description;
+}
+
+class _MovieDetailsPage extends StatelessWidget {
+  const _MovieDetailsPage({required this.movie});
+
+  final _MovieItem movie;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text(movie.title)),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(24),
+              child: SizedBox(
+                height: 360,
+                width: double.infinity,
+                child: _PosterImage(url: movie.imageUrl),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              movie.title,
+              style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: [
+                _MovieMetaChip(icon: Icons.category_outlined, label: movie.category),
+                _MovieMetaChip(
+                  icon: Icons.calendar_month_outlined,
+                  label: movie.year.toString(),
+                ),
+                _MovieMetaChip(icon: Icons.schedule_outlined, label: movie.duration),
+                _MovieMetaChip(
+                  icon: Icons.star_rounded,
+                  label: movie.rating.toStringAsFixed(1),
+                ),
+              ],
+            ),
+            const SizedBox(height: 18),
+            const Text(
+              'Описание',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              movie.description,
+              style: const TextStyle(
+                fontSize: 16,
+                color: Color(0xFFB8B8B8),
+                height: 1.4,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MovieMetaChip extends StatelessWidget {
+  const _MovieMetaChip({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E1E1E),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFF333333)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: const Color(0xFFE53935)),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: const TextStyle(
+              color: Color(0xFFCDCDCD),
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
