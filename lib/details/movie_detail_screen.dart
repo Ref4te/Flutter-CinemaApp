@@ -16,6 +16,7 @@ class MovieDetailScreen extends StatefulWidget {
 enum _TicketsDateFilter { today, tomorrow, dayAfterTomorrow }
 
 class _MovieDetailScreenState extends State<MovieDetailScreen> {
+  static const _trailerVideoId = 'zSWdZVtXT7E';
   static const _fallbackTrailerId = 'n9O_6f0skTM';
 
   late final YoutubePlayerController _youtubeController;
@@ -67,7 +68,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
   void initState() {
     super.initState();
     _youtubeController = YoutubePlayerController.fromVideoId(
-      videoId: _fallbackTrailerId,
+      videoId: _trailerVideoId,
       autoPlay: false,
       params: const YoutubePlayerParams(showFullscreenButton: true, strictRelatedVideos: true),
     );
@@ -124,6 +125,14 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                           ),
                           child: const Icon(Icons.play_arrow_rounded, size: 36),
                         ),
+                      ),
+                    ),
+                    Positioned(
+                      right: 12,
+                      bottom: 12,
+                      child: FilledButton.tonal(
+                        onPressed: () => _youtubeController.loadVideoById(videoId: _fallbackTrailerId),
+                        child: const Text('Ошибка 152-4? Запасной'),
                       ),
                     ),
                   ],
