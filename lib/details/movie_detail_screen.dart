@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:youtube_player_iframe/youtube_player_iframe.dart';
+import 'package:video_player/video_player.dart';
 
 import '../models/movie.dart';
 import 'seat_selection_screen.dart';
@@ -16,10 +16,11 @@ class MovieDetailScreen extends StatefulWidget {
 enum _TicketsDateFilter { today, tomorrow, dayAfterTomorrow }
 
 class _MovieDetailScreenState extends State<MovieDetailScreen> {
-  static const _trailerVideoId = 'zSWdZVtXT7E';
-  static const _fallbackTrailerId = 'n9O_6f0skTM';
+  static const _trailerUrl = 'https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4';
+  static const _fallbackTrailerUrl = 'https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4';
 
-  late final YoutubePlayerController _youtubeController;
+  late VideoPlayerController _videoController;
+  late Future<void> _videoInitialization;
   _TicketsDateFilter _activeDate = _TicketsDateFilter.today;
 
   final List<_ActorItem> _actors = const [
@@ -67,16 +68,14 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
   @override
   void initState() {
     super.initState();
-    _youtubeController = YoutubePlayerController.fromVideoId(
-      videoId: _trailerVideoId,
-      autoPlay: false,
-      params: const YoutubePlayerParams(showFullscreenButton: true, strictRelatedVideos: true),
-    );
+    _videoController = VideoPlayerController.networkUrl(Uri.parse(_trailerUrl));
+    _videoInitialization = _videoController.initialize();
+    _videoController.setLooping(false);
   }
 
   @override
   void dispose() {
-    _youtubeController.close();
+    _videoController.dispose();
     super.dispose();
   }
 
@@ -97,7 +96,24 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                   children: [
                     Padding(
                       padding: const EdgeInsets.only(top: 80),
-                      child: YoutubePlayer(controller: _youtubeController),
+                      child: FutureBuilder<void>(
+                        future: _videoInitialization,
+                        builder: (context, snapshot) {
+                          if (snapshot.connectionState != ConnectionState.done) {
+                            return const Center(child: CircularProgressIndicator());
+                          }
+
+                          return FittedBox(
+                            fit: BoxFit.cover,
+                            clipBehavior: Clip.hardEdge,
+                            child: SizedBox(
+                              width: _videoController.value.size.width,
+                              height: _videoController.value.size.height,
+                              child: VideoPlayer(_videoController),
+                            ),
+                          );
+                        },
+                      ),
                     ),
                     Positioned.fill(
                       child: DecoratedBox(
@@ -115,7 +131,14 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                     ),
                     Center(
                       child: GestureDetector(
-                        onTap: _youtubeController.playVideo,
+                        onTap: () {
+                          if (_videoController.value.isPlaying) {
+                            _videoController.pause();
+                          } else {
+                            _videoController.play();
+                          }
+                          setState(() {});
+                        },
                         child: Container(
                           padding: const EdgeInsets.all(18),
                           decoration: BoxDecoration(
@@ -123,7 +146,12 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                             shape: BoxShape.circle,
                             border: Border.all(color: Colors.white24),
                           ),
-                          child: const Icon(Icons.play_arrow_rounded, size: 36),
+                          child: Icon(
+                            _videoController.value.isPlaying
+                                ? Icons.pause_rounded
+                                : Icons.play_arrow_rounded,
+                            size: 36,
+                          ),
                         ),
                       ),
                     ),
@@ -131,8 +159,24 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                       right: 12,
                       bottom: 12,
                       child: FilledButton.tonal(
-                        onPressed: () => _youtubeController.loadVideoById(videoId: _fallbackTrailerId),
-                        child: const Text('Ошибка 152-4? Запасной'),
+                        onPressed: () async {
+                          final wasPlaying = _videoController.value.isPlaying;
+                          final newController = VideoPlayerController.networkUrl(
+                            Uri.parse(_fallbackTrailerUrl),
+                          );
+                          final init = newController.initialize();
+                          await init;
+                          await _videoController.dispose();
+                          _videoController = newController;
+                          _videoInitialization = init;
+                          if (wasPlaying) {
+                            await _videoController.play();
+                          }
+                          if (mounted) {
+                            setState(() {});
+                          }
+                        },
+                        child: const Text('Запасной трейлер'),
                       ),
                     ),
                   ],
