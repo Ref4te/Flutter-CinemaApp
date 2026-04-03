@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:youtube_player_flutter/youtube_player_flutter.dart';
+import 'package:youtube_player_iframe/youtube_player_iframe.dart';
 
 import '../models/movie.dart';
 import 'seat_selection_screen.dart';
@@ -66,15 +66,16 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
   @override
   void initState() {
     super.initState();
-    _youtubeController = YoutubePlayerController(
-      initialVideoId: _fallbackTrailerId,
-      flags: const YoutubePlayerFlags(autoPlay: false, mute: false),
+    _youtubeController = YoutubePlayerController.fromVideoId(
+      videoId: _fallbackTrailerId,
+      autoPlay: false,
+      params: const YoutubePlayerParams(showFullscreenButton: true, strictRelatedVideos: true),
     );
   }
 
   @override
   void dispose() {
-    _youtubeController.dispose();
+    _youtubeController.close();
     super.dispose();
   }
 
@@ -93,12 +94,9 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                 background: Stack(
                   fit: StackFit.expand,
                   children: [
-                    YoutubePlayerBuilder(
-                      player: YoutubePlayer(
-                        controller: _youtubeController,
-                        showVideoProgressIndicator: true,
-                      ),
-                      builder: (context, player) => player,
+                    Padding(
+                      padding: const EdgeInsets.only(top: 80),
+                      child: YoutubePlayer(controller: _youtubeController),
                     ),
                     Positioned.fill(
                       child: DecoratedBox(
@@ -116,7 +114,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                     ),
                     Center(
                       child: GestureDetector(
-                        onTap: () => _youtubeController.play(),
+                        onTap: _youtubeController.playVideo,
                         child: Container(
                           padding: const EdgeInsets.all(18),
                           decoration: BoxDecoration(
@@ -358,8 +356,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (_) =>
-                                  SeatSelectionScreen(sessionId: session.id),
+                              builder: (_) => SeatSelectionScreen(sessionId: session.id),
                             ),
                           );
                         },
@@ -404,10 +401,7 @@ class _TabsHeaderDelegate extends SliverPersistentHeaderDelegate {
 
   @override
   Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
-    return Container(
-      color: const Color(0xFF141414),
-      child: tabBar,
-    );
+    return Container(color: const Color(0xFF141414), child: tabBar);
   }
 
   @override
