@@ -1,16 +1,15 @@
 # booking_app
 
-Бронирование мест в кинотеатре
+Бронирование мест в кинотеатре.
 
-## Getting Started
+## TMDb API
 
-This project is a starting point for a Flutter application.
+Теперь список фильмов и детали фильма загружаются из **The Movie Database (TMDb)**.
 
-A few resources to get you started if this is your first Flutter project:
+Запускайте приложение с ключом API через `--dart-define`:
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+```bash
+flutter run --dart-define=TMDB_API_KEY=YOUR_TMDB_KEY
+```
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+Если ключ не передан, на главном экране будет показана ошибка загрузки.
