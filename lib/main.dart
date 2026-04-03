@@ -3,11 +3,14 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart'; // Импорт для проверки состояния пользователя
 import 'firebase_options.dart';
 import 'authentification/login_page.dart';
-import 'navigation/main_navigation_screen.dart'; // Убедись, что путь верный
+import 'navigation/main_navigation_screen.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 void main() async {
   // Гарантируем инициализацию связей с нативной платформой
   WidgetsFlutterBinding.ensureInitialized();
+
+  await dotenv.load(fileName: ".env");
 
   // Инициализируем Firebase
   await Firebase.initializeApp(

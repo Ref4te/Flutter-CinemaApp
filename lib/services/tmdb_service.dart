@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 
 import '../models/movie.dart';
@@ -13,7 +14,7 @@ class TmdbData {
 
 class TmdbService {
   static const String _apiBaseUrl = 'https://api.themoviedb.org/3';
-  static const String _apiKey = String.fromEnvironment('TMDB_API_KEY');
+  static String get _apiKey => dotenv.env['TMDB_API_KEY'] ?? '';
   static const String _language = 'ru-RU';
 
   Future<TmdbData> loadHomeData() async {
