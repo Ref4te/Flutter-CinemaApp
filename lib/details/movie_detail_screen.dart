@@ -229,7 +229,7 @@ class _AboutMovieTab extends StatelessWidget {
         ),
         const SizedBox(height: 12),
         SizedBox(
-          height: 92,
+          height: 108,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             itemCount: cast.length,
@@ -237,8 +237,9 @@ class _AboutMovieTab extends StatelessWidget {
             itemBuilder: (context, index) {
               final (name, initials) = cast[index];
               return SizedBox(
-                width: 76,
+                width: 82,
                 child: Column(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     CircleAvatar(
                       radius: 26,
