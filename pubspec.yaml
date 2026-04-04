@@ -38,7 +38,11 @@ dependencies:
   firebase_auth: ^6.3.0
   http: ^1.2.2
   flutter_dotenv: ^6.0.0
+<<<<<<< HEAD
   video_player: ^2.9.2
+=======
+  youtube_player_flutter: ^9.0.0
+>>>>>>> temp-fix
 
 dev_dependencies:
   flutter_test:

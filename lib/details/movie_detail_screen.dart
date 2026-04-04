@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:video_player/video_player.dart';
+import 'package:youtube_player_flutter/youtube_player_flutter.dart';
 
 import '../models/movie.dart';
 import 'seat_selection_screen.dart';
@@ -16,11 +16,9 @@ class MovieDetailScreen extends StatefulWidget {
 enum _TicketsDateFilter { today, tomorrow, dayAfterTomorrow }
 
 class _MovieDetailScreenState extends State<MovieDetailScreen> {
-  static const _trailerUrl = 'https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4';
-  static const _fallbackTrailerUrl = 'https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4';
+  static const _fallbackTrailerId = 'zSWdZVtXT7E';
 
-  late VideoPlayerController _videoController;
-  late Future<void> _videoInitialization;
+  late final YoutubePlayerController _youtubeController;
   _TicketsDateFilter _activeDate = _TicketsDateFilter.today;
 
   final List<_ActorItem> _actors = const [
@@ -68,14 +66,15 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
   @override
   void initState() {
     super.initState();
-    _videoController = VideoPlayerController.networkUrl(Uri.parse(_trailerUrl));
-    _videoInitialization = _videoController.initialize();
-    _videoController.setLooping(false);
+    _youtubeController = YoutubePlayerController(
+      initialVideoId: _fallbackTrailerId,
+      flags: const YoutubePlayerFlags(autoPlay: false, mute: false),
+    );
   }
 
   @override
   void dispose() {
-    _videoController.dispose();
+    _youtubeController.dispose();
     super.dispose();
   }
 
@@ -94,26 +93,12 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                 background: Stack(
                   fit: StackFit.expand,
                   children: [
-                    Padding(
-                      padding: const EdgeInsets.only(top: 80),
-                      child: FutureBuilder<void>(
-                        future: _videoInitialization,
-                        builder: (context, snapshot) {
-                          if (snapshot.connectionState != ConnectionState.done) {
-                            return const Center(child: CircularProgressIndicator());
-                          }
-
-                          return FittedBox(
-                            fit: BoxFit.cover,
-                            clipBehavior: Clip.hardEdge,
-                            child: SizedBox(
-                              width: _videoController.value.size.width,
-                              height: _videoController.value.size.height,
-                              child: VideoPlayer(_videoController),
-                            ),
-                          );
-                        },
+                    YoutubePlayerBuilder(
+                      player: YoutubePlayer(
+                        controller: _youtubeController,
+                        showVideoProgressIndicator: true,
                       ),
+                      builder: (context, player) => player,
                     ),
                     Positioned.fill(
                       child: DecoratedBox(
@@ -131,14 +116,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                     ),
                     Center(
                       child: GestureDetector(
-                        onTap: () {
-                          if (_videoController.value.isPlaying) {
-                            _videoController.pause();
-                          } else {
-                            _videoController.play();
-                          }
-                          setState(() {});
-                        },
+                        onTap: () => _youtubeController.play(),
                         child: Container(
                           padding: const EdgeInsets.all(18),
                           decoration: BoxDecoration(
@@ -146,37 +124,8 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                             shape: BoxShape.circle,
                             border: Border.all(color: Colors.white24),
                           ),
-                          child: Icon(
-                            _videoController.value.isPlaying
-                                ? Icons.pause_rounded
-                                : Icons.play_arrow_rounded,
-                            size: 36,
-                          ),
+                          child: const Icon(Icons.play_arrow_rounded, size: 36),
                         ),
-                      ),
-                    ),
-                    Positioned(
-                      right: 12,
-                      bottom: 12,
-                      child: FilledButton.tonal(
-                        onPressed: () async {
-                          final wasPlaying = _videoController.value.isPlaying;
-                          final newController = VideoPlayerController.networkUrl(
-                            Uri.parse(_fallbackTrailerUrl),
-                          );
-                          final init = newController.initialize();
-                          await init;
-                          await _videoController.dispose();
-                          _videoController = newController;
-                          _videoInitialization = init;
-                          if (wasPlaying) {
-                            await _videoController.play();
-                          }
-                          if (mounted) {
-                            setState(() {});
-                          }
-                        },
-                        child: const Text('Запасной трейлер'),
                       ),
                     ),
                   ],
@@ -409,7 +358,8 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (_) => SeatSelectionScreen(sessionId: session.id),
+                              builder: (_) =>
+                                  SeatSelectionScreen(sessionId: session.id),
                             ),
                           );
                         },
@@ -454,7 +404,10 @@ class _TabsHeaderDelegate extends SliverPersistentHeaderDelegate {
 
   @override
   Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
-    return Container(color: const Color(0xFF141414), child: tabBar);
+    return Container(
+      color: const Color(0xFF141414),
+      child: tabBar,
+    );
   }
 
   @override
