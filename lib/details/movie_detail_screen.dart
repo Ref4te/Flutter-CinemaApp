@@ -41,13 +41,10 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
   @override
   Widget build(BuildContext context) {
     return YoutubePlayerBuilder(
-      player: ClipRRect(
-        borderRadius: BorderRadius.circular(20),
-        child: YoutubePlayer(
-          controller: _youtubeController,
-          showVideoProgressIndicator: true,
-          progressIndicatorColor: const Color(0xFFE53935),
-        ),
+      player: YoutubePlayer(
+        controller: _youtubeController,
+        showVideoProgressIndicator: true,
+        progressIndicatorColor: const Color(0xFFE53935),
       ),
       onExitFullScreen: () {
         SystemChrome.setPreferredOrientations([
@@ -70,7 +67,10 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              player,
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(20),
+                                child: player,
+                              ),
                               const SizedBox(height: 14),
                               _buildInfoPanel(),
                               const SizedBox(height: 18),
