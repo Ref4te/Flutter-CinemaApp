@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:youtube_player_flutter/youtube_player_flutter.dart';
 
 import '../models/movie.dart';
@@ -30,84 +31,95 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
 
   @override
   void dispose() {
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+    ]);
     _youtubeController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return DefaultTabController(
-      length: 3,
-      child: Scaffold(
-        appBar: AppBar(title: Text(widget.movie.title)),
-        body: Column(
-          children: [
-            Expanded(
-              child: NestedScrollView(
-                headerSliverBuilder: (_, __) {
-                  return [
-                    SliverToBoxAdapter(
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(20),
-                              child: YoutubePlayer(
-                                controller: _youtubeController,
-                                showVideoProgressIndicator: true,
-                                progressIndicatorColor: const Color(0xFFE53935),
-                              ),
-                            ),
-                            const SizedBox(height: 14),
-                            _buildInfoPanel(),
-                            const SizedBox(height: 18),
-                          ],
-                        ),
-                      ),
-                    ),
-                    SliverPersistentHeader(
-                      pinned: true,
-                      delegate: _TabsHeaderDelegate(
-                        child: Container(
-                          color: const Color(0xFF121212),
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          alignment: Alignment.centerLeft,
-                          child: TabBar(
-                            isScrollable: true,
-                            dividerColor: Colors.transparent,
-                            labelColor: Colors.white,
-                            unselectedLabelColor: const Color(0xFF888888),
-                            indicatorColor: const Color(0xFFE53935),
-                            indicatorWeight: 3,
-                            tabs: const [
-                              Tab(text: 'Билеты'),
-                              Tab(text: 'О фильме'),
-                              Tab(text: 'Отзывы'),
+    return YoutubePlayerBuilder(
+      player: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: YoutubePlayer(
+          controller: _youtubeController,
+          showVideoProgressIndicator: true,
+          progressIndicatorColor: const Color(0xFFE53935),
+        ),
+      ),
+      onExitFullScreen: () {
+        SystemChrome.setPreferredOrientations([
+          DeviceOrientation.portraitUp,
+        ]);
+      },
+      builder: (context, player) => DefaultTabController(
+        length: 3,
+        child: Scaffold(
+          appBar: AppBar(title: Text(widget.movie.title)),
+          body: Column(
+            children: [
+              Expanded(
+                child: NestedScrollView(
+                  headerSliverBuilder: (_, __) {
+                    return [
+                      SliverToBoxAdapter(
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              player,
+                              const SizedBox(height: 14),
+                              _buildInfoPanel(),
+                              const SizedBox(height: 18),
                             ],
                           ),
                         ),
                       ),
-                    ),
-                  ];
-                },
-                body: TabBarView(
-                  children: [
-                    _TicketsTab(
-                      activeDate: _activeDate,
-                      onDateSelected: (value) {
-                        setState(() => _activeDate = value);
-                      },
-                      sessions: _sessionsByDate[_activeDate]!,
-                    ),
-                    _AboutMovieTab(movie: widget.movie),
-                    const _ReviewsTab(),
-                  ],
+                      SliverPersistentHeader(
+                        pinned: true,
+                        delegate: _TabsHeaderDelegate(
+                          child: Container(
+                            color: const Color(0xFF121212),
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            alignment: Alignment.centerLeft,
+                            child: TabBar(
+                              isScrollable: true,
+                              dividerColor: Colors.transparent,
+                              labelColor: Colors.white,
+                              unselectedLabelColor: const Color(0xFF888888),
+                              indicatorColor: const Color(0xFFE53935),
+                              indicatorWeight: 3,
+                              tabs: const [
+                                Tab(text: 'Билеты'),
+                                Tab(text: 'О фильме'),
+                                Tab(text: 'Отзывы'),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ];
+                  },
+                  body: TabBarView(
+                    children: [
+                      _TicketsTab(
+                        activeDate: _activeDate,
+                        onDateSelected: (value) {
+                          setState(() => _activeDate = value);
+                        },
+                        sessions: _sessionsByDate[_activeDate]!,
+                      ),
+                      _AboutMovieTab(movie: widget.movie),
+                      const _ReviewsTab(),
+                    ],
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
