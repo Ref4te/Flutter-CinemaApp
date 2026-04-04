@@ -65,7 +65,11 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                         floating: false,
                         pinned: true,
                         snap: false,
-                        title: Text(widget.movie.title),
+                        toolbarHeight: 56,
+                        title: Text(
+                          widget.movie.title,
+                          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                        ),
                         actions: [
                           IconButton(
                             onPressed: () {
