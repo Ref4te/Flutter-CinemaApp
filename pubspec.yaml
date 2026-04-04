@@ -38,6 +38,7 @@ dependencies:
   firebase_auth: ^6.3.0
   http: ^1.2.2
   flutter_dotenv: ^6.0.0
+  youtube_player_flutter: ^9.0.0
 
 dev_dependencies:
   flutter_test:
