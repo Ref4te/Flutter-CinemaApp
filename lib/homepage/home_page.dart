@@ -3,6 +3,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 
 import '../models/movie.dart';
 import '../services/tmdb_service.dart';
+import '../details/movie_detail_screen.dart';
 import '../settings/settings_page.dart';
 
 class HomePage extends StatefulWidget {
@@ -112,7 +113,7 @@ class _HomePageState extends State<HomePage> {
                                   Navigator.push(
                                     context,
                                     MaterialPageRoute(
-                                      builder: (_) => MovieDetailsPage(movie: movie),
+                                      builder: (_) => MovieDetailScreen(movie: movie),
                                     ),
                                   );
                                 },
@@ -222,7 +223,7 @@ class _HomePageState extends State<HomePage> {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (_) => MovieDetailsPage(movie: selectedMovie),
+                    builder: (_) => MovieDetailScreen(movie: selectedMovie),
                   ),
                 );
               });
@@ -444,87 +445,6 @@ class _PosterImage extends StatelessWidget {
       ),
       alignment: Alignment.center,
       child: const Icon(Icons.movie_outlined, color: Color(0xFF8A8A8A), size: 42),
-    );
-  }
-}
-
-class MovieDetailsPage extends StatelessWidget {
-  const MovieDetailsPage({super.key, required this.movie});
-
-  final MovieItem movie;
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text(movie.title)),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 10, 16, 20),
-        children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(24),
-            child: AspectRatio(
-              aspectRatio: 2 / 3,
-              child: _PosterImage(url: movie.imageUrl),
-            ),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            movie.title,
-            style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w700),
-          ),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              _InfoChip(label: movie.category, icon: Icons.movie_filter_outlined),
-              _InfoChip(label: '${movie.year}', icon: Icons.calendar_month_outlined),
-              _InfoChip(label: movie.duration, icon: Icons.schedule_outlined),
-              _InfoChip(
-                label: '⭐ ${movie.rating.toStringAsFixed(1)}',
-                icon: Icons.star_outline_rounded,
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          const Text(
-            'Описание',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            movie.description,
-            style: const TextStyle(fontSize: 16, height: 1.4, color: Color(0xFFB8B8B8)),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _InfoChip extends StatelessWidget {
-  const _InfoChip({required this.label, required this.icon});
-
-  final String label;
-  final IconData icon;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1E1E1E),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFF333333)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 16, color: const Color(0xFFE53935)),
-          const SizedBox(width: 6),
-          Text(label, style: const TextStyle(color: Color(0xFFD0D0D0))),
-        ],
-      ),
     );
   }
 }
