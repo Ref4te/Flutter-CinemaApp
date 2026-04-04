@@ -16,7 +16,7 @@ class MovieDetailScreen extends StatefulWidget {
 enum _TicketsDateFilter { today, tomorrow, dayAfterTomorrow }
 
 class _MovieDetailScreenState extends State<MovieDetailScreen> {
-  static const _fallbackTrailerId = 'n9O_6f0skTM';
+  static const _fallbackTrailerId = 'zSWdZVtXT7E';
 
   late final YoutubePlayerController _youtubeController;
   _TicketsDateFilter _activeDate = _TicketsDateFilter.today;
