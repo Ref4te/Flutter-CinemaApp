@@ -121,17 +121,20 @@ class _HomePageState extends State<HomePage> {
                                       ),
                                     ),
                                     const SizedBox(height: 8),
-                                    Text(
-                                      movie.title,
-                                      maxLines: 2,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(
-                                        color: Color(0xFFB8B8B8),
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w500,
+                                    SizedBox(
+                                      height: 44,
+                                      child: Text(
+                                        movie.title,
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          color: Color(0xFFB8B8B8),
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w500,
+                                        ),
                                       ),
                                     ),
-                                    const SizedBox(height: 4),
+                                    const SizedBox(height: 6),
                                     Row(
                                       children: [
                                         const Icon(
@@ -145,6 +148,18 @@ class _HomePageState extends State<HomePage> {
                                           style: const TextStyle(
                                             color: Color(0xFFDADADA),
                                             fontSize: 14,
+                                          ),
+                                        ),
+                                        const Spacer(),
+                                        Flexible(
+                                          child: Text(
+                                            movie.category,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: const TextStyle(
+                                              color: Color(0xFF8E8E8E),
+                                              fontSize: 12,
+                                            ),
                                           ),
                                         ),
                                       ],

@@ -74,6 +74,11 @@ class MovieFullDetailsData {
   final List<MovieReviewData> reviews;
   final double voteAverage;
   final int voteCount;
+  final String? ageRating;
+  final String? tagline;
+  final String? originalTitle;
+  final String? status;
+  final DateTime? releaseDate;
 
   const MovieFullDetailsData({
     required this.genres,
@@ -86,6 +91,11 @@ class MovieFullDetailsData {
     required this.reviews,
     required this.voteAverage,
     required this.voteCount,
+    required this.ageRating,
+    required this.tagline,
+    required this.originalTitle,
+    required this.status,
+    required this.releaseDate,
   });
 }
 
@@ -152,7 +162,10 @@ class TmdbService {
   }
 
   Future<MovieFullDetailsData> loadMovieFullDetails(int movieId) async {
-    final json = await _getJson('/movie/$movieId', extraQuery: '&append_to_response=videos,credits,reviews');
+    final json = await _getJson(
+      '/movie/$movieId',
+      extraQuery: '&append_to_response=videos,credits,reviews,release_dates',
+    );
     final genresJson = (json['genres'] as List<dynamic>? ?? [])
         .cast<Map<String, dynamic>>();
     final runtime = (json['runtime'] as num?)?.toInt() ?? 0;
@@ -218,6 +231,16 @@ class TmdbService {
 
     final voteAverage = ((json['vote_average'] as num?) ?? 0).toDouble();
     final voteCount = (json['vote_count'] as num?)?.toInt() ?? 0;
+    final ageRating = _extractAgeRating(
+      ((json['release_dates'] as Map<String, dynamic>?)?['results']
+              as List<dynamic>? ??
+          [])
+          .cast<Map<String, dynamic>>(),
+    );
+    final tagline = (json['tagline'] as String?)?.trim();
+    final originalTitle = (json['original_title'] as String?)?.trim();
+    final status = (json['status'] as String?)?.trim();
+    final releaseDate = DateTime.tryParse((json['release_date'] as String?) ?? '');
 
     return MovieFullDetailsData(
       genres: genres,
@@ -230,7 +253,49 @@ class TmdbService {
       reviews: reviews,
       voteAverage: voteAverage,
       voteCount: voteCount,
+      ageRating: ageRating,
+      tagline: tagline == null || tagline.isEmpty ? null : tagline,
+      originalTitle: originalTitle == null || originalTitle.isEmpty ? null : originalTitle,
+      status: status == null || status.isEmpty ? null : status,
+      releaseDate: releaseDate,
     );
+  }
+
+  String? _extractAgeRating(List<Map<String, dynamic>> releaseDateResults) {
+    const priority = ['RU', 'US'];
+    for (final country in priority) {
+      final value = _extractCertificationForCountry(releaseDateResults, country);
+      if (value != null) return value;
+    }
+
+    for (final countryResult in releaseDateResults) {
+      final value = _extractCertificationForCountry(
+        releaseDateResults,
+        countryResult['iso_3166_1']?.toString(),
+      );
+      if (value != null) return value;
+    }
+    return null;
+  }
+
+  String? _extractCertificationForCountry(
+    List<Map<String, dynamic>> releaseDateResults,
+    String? countryCode,
+  ) {
+    if (countryCode == null || countryCode.isEmpty) return null;
+
+    for (final result in releaseDateResults) {
+      if (result['iso_3166_1'] != countryCode) continue;
+      final releaseDates = (result['release_dates'] as List<dynamic>? ?? [])
+          .cast<Map<String, dynamic>>();
+      for (final release in releaseDates) {
+        final certification = (release['certification'] as String?)?.trim();
+        if (certification != null && certification.isNotEmpty) {
+          return certification;
+        }
+      }
+    }
+    return null;
   }
 
   String? _extractTrailerYoutubeId(List<Map<String, dynamic>> videos) {

@@ -258,8 +258,8 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(color: const Color(0xFF5A5A5A)),
                 ),
-                child: const Text(
-                  '18+',
+                child: Text(
+                  _buildAgeRatingLabel(details.ageRating),
                   style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
                 ),
               ),
@@ -369,6 +369,16 @@ class _AboutMovieTab extends StatelessWidget {
           description,
           style: const TextStyle(fontSize: 16, height: 1.45, color: Color(0xFFCFCFCF)),
         ),
+        if (details.tagline != null) ...[
+          const SizedBox(height: 10),
+          Text(
+            details.tagline!,
+            style: const TextStyle(
+              color: Color(0xFF9F9F9F),
+              fontStyle: FontStyle.italic,
+            ),
+          ),
+        ],
         const SizedBox(height: 18),
         const Text(
           'Актеры',
@@ -437,8 +447,28 @@ class _AboutMovieTab extends StatelessWidget {
         _DetailRow(label: 'Режиссер', value: details.director ?? 'Не указан'),
         _DetailRow(label: 'Длительность', value: durationText),
         _DetailRow(label: 'Страна', value: countryText),
+        _DetailRow(label: 'Дата выхода', value: _formatDate(details.releaseDate)),
+        _DetailRow(
+          label: 'Оригинал',
+          value: details.originalTitle ?? 'Не указано',
+        ),
+        _DetailRow(label: 'Статус', value: details.status ?? 'Не указан'),
+        _DetailRow(
+          label: 'Рейтинг TMDB',
+          value: details.voteAverage > 0
+              ? '${details.voteAverage.toStringAsFixed(1)} (${details.voteCount})'
+              : 'Нет данных',
+        ),
       ],
     );
+  }
+
+  String _formatDate(DateTime? date) {
+    if (date == null) return 'Не указана';
+    final day = date.day.toString().padLeft(2, '0');
+    final month = date.month.toString().padLeft(2, '0');
+    final year = date.year.toString();
+    return '$day.$month.$year';
   }
 }
 
@@ -733,4 +763,11 @@ class _Session {
   final int price;
 
   const _Session({required this.id, required this.time, required this.price});
+}
+
+String _buildAgeRatingLabel(String? rawRating) {
+  final rating = rawRating?.trim();
+  if (rating == null || rating.isEmpty) return '—';
+  if (rating.endsWith('+')) return rating;
+  return '$rating+';
 }
