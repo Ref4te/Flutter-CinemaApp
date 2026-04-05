@@ -57,8 +57,7 @@ class MovieItem {
       releaseDate: releaseDate,
       duration: _formatDuration(runtime),
       rating: rating,
-      description:
-          (json['overview'] as String?)?.trim().isNotEmpty == true
+      description: (json['overview'] as String?)?.trim().isNotEmpty == true
           ? (json['overview'] as String).trim()
           : 'Описание пока недоступно.',
     );
@@ -90,9 +89,8 @@ class BannerItem {
     final backdropPath = json['backdrop_path'] as String?;
     return BannerItem(
       title: (json['title'] as String?) ?? (json['name'] as String?) ?? 'Без названия',
-      imageUrl: backdropPath == null || backdropPath.isEmpty
-          ? ''
-          : '$_tmdbImageBaseUrl$backdropPath',
+      imageUrl:
+          backdropPath == null || backdropPath.isEmpty ? '' : '$_tmdbImageBaseUrl$backdropPath',
     );
   }
 }

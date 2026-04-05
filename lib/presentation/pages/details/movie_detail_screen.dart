@@ -3,8 +3,9 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:youtube_player_flutter/youtube_player_flutter.dart';
 
-import '../models/movie.dart';
-import '../services/tmdb_service.dart';
+import '../../../domain/entities/movie.dart';
+import '../../../domain/entities/movie_details.dart';
+import '../../../data/repositories/tmdb_repository.dart';
 import 'seat_selection_screen.dart';
 
 class MovieDetailScreen extends StatefulWidget {
@@ -17,7 +18,7 @@ class MovieDetailScreen extends StatefulWidget {
 }
 
 class _MovieDetailScreenState extends State<MovieDetailScreen> {
-  final _tmdbService = TmdbService();
+  final _tmdbRepository = TmdbRepository();
 
   YoutubePlayerController? _youtubeController;
   late Future<MovieFullDetailsData> _detailsFuture;
@@ -42,7 +43,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
   }
 
   Future<MovieFullDetailsData> _loadMovieDetails() async {
-    final details = await _tmdbService.loadMovieFullDetails(widget.movie.id);
+    final details = await _tmdbRepository.loadMovieFullDetails(widget.movie.id);
     _setupYoutube(details.trailerYoutubeId);
     return details;
   }

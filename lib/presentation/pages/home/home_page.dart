@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
-import '../models/movie.dart';
-import '../services/tmdb_service.dart';
+import '../../../domain/entities/movie.dart';
+import '../../../data/repositories/tmdb_repository.dart';
 import '../details/movie_detail_screen.dart';
 import '../settings/settings_page.dart';
 
@@ -16,21 +16,21 @@ class HomePage extends StatefulWidget {
 enum _HomeCategory { now, soon }
 
 class _HomePageState extends State<HomePage> {
-  final TmdbService _tmdbService = TmdbService();
+  final TmdbRepository _tmdbRepository = TmdbRepository();
 
-  late Future<TmdbData> _homeDataFuture;
+  late Future<TmdbHomeData> _homeDataFuture;
   _HomeCategory _activeCategory = _HomeCategory.now;
 
   @override
   void initState() {
     super.initState();
-    _homeDataFuture = _tmdbService.loadHomeData();
+    _homeDataFuture = _tmdbRepository.loadHomeData();
   }
 
   void _reloadData() {
     setState(() {
       _activeCategory = _HomeCategory.now;
-      _homeDataFuture = _tmdbService.loadHomeData();
+      _homeDataFuture = _tmdbRepository.loadHomeData();
     });
   }
 
@@ -52,7 +52,7 @@ class _HomePageState extends State<HomePage> {
         ],
       ),
       body: SafeArea(
-        child: FutureBuilder<TmdbData>(
+        child: FutureBuilder<TmdbHomeData>(
           future: _homeDataFuture,
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
