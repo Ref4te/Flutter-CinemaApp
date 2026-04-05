@@ -31,6 +31,7 @@ class _SeatSelectionScreenState extends State<SeatSelectionScreen> {
 
   TicketSeat? _focusedSeat;
   TicketTariff _activeTariff = TicketTariff.adult;
+  _BottomPanelMode _bottomPanelMode = _BottomPanelMode.hidden;
 
   @override
   void initState() {
@@ -72,6 +73,7 @@ class _SeatSelectionScreenState extends State<SeatSelectionScreen> {
     setState(() {
       _focusedSeat = seat;
       _activeTariff = _selectedSeats[seat] ?? TicketTariff.adult;
+      _bottomPanelMode = _BottomPanelMode.seatInfo;
     });
   }
 
@@ -82,14 +84,15 @@ class _SeatSelectionScreenState extends State<SeatSelectionScreen> {
     }
     setState(() {
       _selectedSeats[focused] = _activeTariff;
+      _bottomPanelMode = _BottomPanelMode.cart;
     });
   }
 
   void _removeSeat(TicketSeat seat) {
     setState(() {
       _selectedSeats.remove(seat);
-      if (_focusedSeat == seat) {
-        _focusedSeat = null;
+      if (_selectedSeats.isEmpty) {
+        _bottomPanelMode = _focusedSeat == null ? _BottomPanelMode.hidden : _BottomPanelMode.seatInfo;
       }
     });
   }
@@ -130,14 +133,15 @@ class _SeatSelectionScreenState extends State<SeatSelectionScreen> {
   @override
   Widget build(BuildContext context) {
     final bottomInset = MediaQuery.of(context).padding.bottom;
-    final cartOffset = _selectedSeats.isEmpty ? 0.0 : 140 + bottomInset;
+    final hasBottomPanel = _bottomPanelMode != _BottomPanelMode.hidden;
+    final bottomOffset = hasBottomPanel ? 210 + bottomInset : 0.0;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Выбор мест'), centerTitle: true),
       body: Stack(
         children: [
           Padding(
-            padding: EdgeInsets.fromLTRB(8, 12, 8, cartOffset),
+            padding: EdgeInsets.fromLTRB(8, 12, 8, bottomOffset),
             child: InteractiveViewer(
               minScale: 0.8,
               maxScale: 2.8,
@@ -175,80 +179,11 @@ class _SeatSelectionScreenState extends State<SeatSelectionScreen> {
               ),
             ),
           ),
-          if (_focusedSeat != null)
-            DraggableScrollableSheet(
-              initialChildSize: 0.22,
-              minChildSize: 0.16,
-              maxChildSize: 0.45,
-              builder: (context, controller) {
-                final seat = _focusedSeat!;
-                final isAdded = _selectedSeats.containsKey(seat);
-                return Container(
-                  decoration: const BoxDecoration(
-                    color: Color(0xFF1E1E1E),
-                    borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-                  ),
-                  child: ListView(
-                    controller: controller,
-                    padding: EdgeInsets.fromLTRB(16, 14, 16, cartOffset > 0 ? 86 + bottomInset : 18),
-                    children: [
-                      Center(
-                        child: Container(
-                          width: 56,
-                          height: 5,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF4C4C4C),
-                            borderRadius: BorderRadius.circular(100),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'Ряд ${seat.row}, Место ${seat.seat}',
-                        style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
-                      ),
-                      const SizedBox(height: 12),
-                      const Text(
-                        'Тариф',
-                        style: TextStyle(color: Color(0xFFB7B7B7), fontWeight: FontWeight.w600),
-                      ),
-                      const SizedBox(height: 8),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: TicketTariff.values.map((tariff) {
-                          return ChoiceChip(
-                            selected: _activeTariff == tariff,
-                            label: Text('${tariff.label} • ${_priceFor(seat, tariff)} ₸'),
-                            onSelected: (_) {
-                              setState(() => _activeTariff = tariff);
-                            },
-                          );
-                        }).toList(),
-                      ),
-                      const SizedBox(height: 14),
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton(
-                          onPressed: _addFocusedSeat,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFFE53935),
-                            foregroundColor: Colors.white,
-                            minimumSize: const Size.fromHeight(48),
-                          ),
-                          child: Text(isAdded ? 'Обновить' : 'Добавить'),
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              },
-            ),
-          if (_selectedSeats.isNotEmpty)
+          if (hasBottomPanel)
             Align(
               alignment: Alignment.bottomCenter,
               child: Container(
-                padding: EdgeInsets.fromLTRB(14, 10, 14, 12 + bottomInset),
+                padding: EdgeInsets.fromLTRB(14, 10, 14, 10 + bottomInset),
                 decoration: const BoxDecoration(
                   color: Color(0xFF151515),
                   borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
@@ -256,52 +191,115 @@ class _SeatSelectionScreenState extends State<SeatSelectionScreen> {
                 ),
                 child: SafeArea(
                   top: false,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '${_selectedSeats.length} билет(ов) • $_totalPrice ₸',
-                        style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
-                      ),
-                      const SizedBox(height: 10),
-                      SizedBox(
-                        height: 36,
-                        child: ListView(
-                          scrollDirection: Axis.horizontal,
-                          children: _selectedSeats.entries.map((entry) {
-                            return Container(
-                              margin: const EdgeInsets.only(right: 8),
-                              child: Chip(
-                                backgroundColor: const Color(0xFF262626),
-                                label: Text('Р${entry.key.row}-М${entry.key.seat} (${entry.value.short})'),
-                                deleteIcon: const Icon(Icons.close, size: 16),
-                                onDeleted: () => _removeSeat(entry.key),
-                              ),
-                            );
-                          }).toList(),
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton(
-                          onPressed: _goToCheckout,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFFE53935),
-                            foregroundColor: Colors.white,
-                            minimumSize: const Size.fromHeight(50),
-                          ),
-                          child: const Text('Купить билеты'),
-                        ),
-                      ),
-                    ],
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 200),
+                    child: _bottomPanelMode == _BottomPanelMode.seatInfo
+                        ? _buildSeatInfoPanel()
+                        : _buildCartPanel(),
                   ),
                 ),
               ),
             ),
         ],
       ),
+    );
+  }
+
+  Widget _buildSeatInfoPanel() {
+    final seat = _focusedSeat;
+    if (seat == null) {
+      return const SizedBox.shrink();
+    }
+    final isAdded = _selectedSeats.containsKey(seat);
+    return Column(
+      key: const ValueKey('seat-info-panel'),
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Ряд ${seat.row}, Место ${seat.seat}',
+          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+        ),
+        const SizedBox(height: 10),
+        const Text('Тариф', style: TextStyle(color: Color(0xFFB7B7B7), fontWeight: FontWeight.w600)),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: TicketTariff.values.map((tariff) {
+            return ChoiceChip(
+              selected: _activeTariff == tariff,
+              label: Text('${tariff.label} • ${_priceFor(seat, tariff)} ₸'),
+              onSelected: (_) => setState(() => _activeTariff = tariff),
+            );
+          }).toList(),
+        ),
+        const SizedBox(height: 12),
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton(
+            onPressed: _addFocusedSeat,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFE53935),
+              foregroundColor: Colors.white,
+              minimumSize: const Size.fromHeight(48),
+            ),
+            child: Text(isAdded ? 'Обновить' : 'Добавить'),
+          ),
+        ),
+        if (_selectedSeats.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          TextButton(
+            onPressed: () => setState(() => _bottomPanelMode = _BottomPanelMode.cart),
+            child: Text('Перейти в корзину (${_selectedSeats.length})'),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildCartPanel() {
+    return Column(
+      key: const ValueKey('cart-panel'),
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '${_selectedSeats.length} билет(ов) • $_totalPrice ₸',
+          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+        ),
+        const SizedBox(height: 10),
+        SizedBox(
+          height: 36,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            children: _selectedSeats.entries.map((entry) {
+              return Container(
+                margin: const EdgeInsets.only(right: 8),
+                child: Chip(
+                  backgroundColor: const Color(0xFF262626),
+                  label: Text('Р${entry.key.row}-М${entry.key.seat} (${entry.value.short})'),
+                  deleteIcon: const Icon(Icons.close, size: 16),
+                  onDeleted: () => _removeSeat(entry.key),
+                ),
+              );
+            }).toList(),
+          ),
+        ),
+        const SizedBox(height: 10),
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton(
+            onPressed: _goToCheckout,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFE53935),
+              foregroundColor: Colors.white,
+              minimumSize: const Size.fromHeight(50),
+            ),
+            child: const Text('Купить билеты'),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -439,3 +437,5 @@ enum TicketTariff {
   final String label;
   final String short;
 }
+
+enum _BottomPanelMode { hidden, seatInfo, cart }
