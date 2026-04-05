@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:youtube_player_flutter/youtube_player_flutter.dart';
 
 import '../models/movie.dart';
+import '../services/tmdb_service.dart';
 import 'seat_selection_screen.dart';
 
 class MovieDetailScreen extends StatefulWidget {
@@ -16,19 +17,18 @@ class MovieDetailScreen extends StatefulWidget {
 }
 
 class _MovieDetailScreenState extends State<MovieDetailScreen> {
-  static const _fallbackTrailerId = 'zSWdZVtXT7E';
+  final _tmdbService = TmdbService();
 
-  late final YoutubePlayerController _youtubeController;
+  YoutubePlayerController? _youtubeController;
+  late Future<MovieFullDetailsData> _detailsFuture;
+
   _TicketDateFilter _activeDate = _TicketDateFilter.today;
   bool _isFavorite = false;
 
   @override
   void initState() {
     super.initState();
-    _youtubeController = YoutubePlayerController(
-      initialVideoId: _fallbackTrailerId,
-      flags: const YoutubePlayerFlags(autoPlay: false, mute: false),
-    );
+    _detailsFuture = _loadMovieDetails();
     _loadFavoriteStatus();
   }
 
@@ -37,134 +37,204 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
     SystemChrome.setPreferredOrientations([
       DeviceOrientation.portraitUp,
     ]);
-    _youtubeController.dispose();
+    _youtubeController?.dispose();
     super.dispose();
+  }
+
+  Future<MovieFullDetailsData> _loadMovieDetails() async {
+    final details = await _tmdbService.loadMovieFullDetails(widget.movie.id);
+    _setupYoutube(details.trailerYoutubeId);
+    return details;
+  }
+
+  void _setupYoutube(String? trailerYoutubeId) {
+    if (trailerYoutubeId == null || trailerYoutubeId.isEmpty) return;
+
+    _youtubeController?.dispose();
+    _youtubeController = YoutubePlayerController(
+      initialVideoId: trailerYoutubeId,
+      flags: const YoutubePlayerFlags(autoPlay: false, mute: false),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    return YoutubePlayerBuilder(
-      player: YoutubePlayer(
-        controller: _youtubeController,
-        showVideoProgressIndicator: true,
-        progressIndicatorColor: const Color(0xFFE53935),
-      ),
-      onExitFullScreen: () {
-        SystemChrome.setPreferredOrientations([
-          DeviceOrientation.portraitUp,
-        ]);
-      },
-      builder: (context, player) => DefaultTabController(
-        length: 3,
-        child: Scaffold(
-          body: Column(
-            children: [
-              Expanded(
-                child: NestedScrollView(
-                  headerSliverBuilder: (_, __) {
-                    return [
-                      SliverAppBar(
-                        floating: false,
-                        pinned: true,
-                        snap: false,
-                        toolbarHeight: 56,
-                        expandedHeight: 300,
-                        title: Text(
-                          widget.movie.title,
-                          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-                        ),
-                        flexibleSpace: FlexibleSpaceBar(
-                          background: SafeArea(
-                            bottom: false,
-                            child: Padding(
-                              padding: const EdgeInsets.fromLTRB(16, 64, 16, 16),
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(20),
-                                child: player,
-                              ),
-                            ),
-                          ),
-                        ),
-                        actions: [
-                          IconButton(
-                            onPressed: _toggleFavorite,
-                            icon: Icon(
-                              _isFavorite ? Icons.favorite : Icons.favorite_border,
-                              color: _isFavorite ? const Color(0xFFE53935) : Colors.white,
-                            ),
-                            tooltip: 'Избранное',
-                          ),
-                        ],
-                      ),
-                      SliverToBoxAdapter(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const SizedBox(height: 12),
-                            _buildInfoPanel(),
-                            const SizedBox(height: 18),
-                          ],
-                        ),
-                      ),
-                      SliverPersistentHeader(
-                        pinned: true,
-                        delegate: _TabsHeaderDelegate(
-                          child: Container(
-                            color: const Color(0xFF121212),
-                            padding: const EdgeInsets.symmetric(horizontal: 16),
-                            alignment: Alignment.centerLeft,
-                            child: TabBar(
-                              isScrollable: false,
-                              tabAlignment: TabAlignment.fill,
-                              dividerColor: Colors.transparent,
-                              labelColor: Colors.white,
-                              unselectedLabelColor: const Color(0xFF888888),
-                              indicatorColor: const Color(0xFFE53935),
-                              indicatorWeight: 4,
-                              labelStyle: const TextStyle(
-                                fontWeight: FontWeight.w700,
-                                fontSize: 15,
-                              ),
-                              unselectedLabelStyle: const TextStyle(
-                                fontWeight: FontWeight.w500,
-                                fontSize: 15,
-                              ),
-                              tabs: const [
-                                Tab(text: 'Билеты'),
-                                Tab(text: 'О фильме'),
-                                Tab(text: 'Отзывы'),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ];
-                  },
-                  body: TabBarView(
-                    children: [
-                      _TicketsTab(
-                        movieTitle: widget.movie.title,
-                        activeDate: _activeDate,
-                        onDateSelected: (value) {
-                          setState(() => _activeDate = value);
-                        },
-                        sessions: _sessionsByDate[_activeDate]!,
-                      ),
-                      _AboutMovieTab(movie: widget.movie),
-                      const _ReviewsTab(),
-                    ],
-                  ),
+    return FutureBuilder<MovieFullDetailsData>(
+      future: _detailsFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(body: Center(child: CircularProgressIndicator()));
+        }
+
+        if (snapshot.hasError || !snapshot.hasData) {
+          return Scaffold(
+            appBar: AppBar(title: Text(widget.movie.title)),
+            body: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Text(
+                  'Не удалось загрузить данные фильма.\n${snapshot.error ?? ''}',
+                  textAlign: TextAlign.center,
                 ),
               ),
-            ],
+            ),
+          );
+        }
+
+        final details = snapshot.data!;
+
+        return DefaultTabController(
+          length: 3,
+          child: Scaffold(
+            body: Column(
+              children: [
+                Expanded(
+                  child: NestedScrollView(
+                    headerSliverBuilder: (_, __) {
+                      return [
+                        SliverAppBar(
+                          floating: false,
+                          pinned: true,
+                          snap: false,
+                          toolbarHeight: 56,
+                          expandedHeight: 300,
+                          title: Text(
+                            widget.movie.title,
+                            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                          ),
+                          flexibleSpace: FlexibleSpaceBar(
+                            background: SafeArea(
+                              bottom: false,
+                              child: Padding(
+                                padding: const EdgeInsets.fromLTRB(16, 64, 16, 16),
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(20),
+                                  child: _buildTrailerPlayer(),
+                                ),
+                              ),
+                            ),
+                          ),
+                          actions: [
+                            IconButton(
+                              onPressed: _toggleFavorite,
+                              icon: Icon(
+                                _isFavorite ? Icons.favorite : Icons.favorite_border,
+                                color: _isFavorite ? const Color(0xFFE53935) : Colors.white,
+                              ),
+                              tooltip: 'Избранное',
+                            ),
+                          ],
+                        ),
+                        SliverToBoxAdapter(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const SizedBox(height: 12),
+                              _buildInfoPanel(details),
+                              const SizedBox(height: 18),
+                            ],
+                          ),
+                        ),
+                        SliverPersistentHeader(
+                          pinned: true,
+                          delegate: _TabsHeaderDelegate(
+                            child: Container(
+                              color: const Color(0xFF121212),
+                              padding: const EdgeInsets.symmetric(horizontal: 16),
+                              alignment: Alignment.centerLeft,
+                              child: TabBar(
+                                isScrollable: false,
+                                tabAlignment: TabAlignment.fill,
+                                dividerColor: Colors.transparent,
+                                labelColor: Colors.white,
+                                unselectedLabelColor: const Color(0xFF888888),
+                                indicatorColor: const Color(0xFFE53935),
+                                indicatorWeight: 4,
+                                labelStyle: const TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 15,
+                                ),
+                                unselectedLabelStyle: const TextStyle(
+                                  fontWeight: FontWeight.w500,
+                                  fontSize: 15,
+                                ),
+                                tabs: const [
+                                  Tab(text: 'Билеты'),
+                                  Tab(text: 'О фильме'),
+                                  Tab(text: 'Отзывы'),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ];
+                    },
+                    body: TabBarView(
+                      children: [
+                        _TicketsTab(
+                          movieTitle: widget.movie.title,
+                          activeDate: _activeDate,
+                          onDateSelected: (value) {
+                            setState(() => _activeDate = value);
+                          },
+                          sessions: _sessionsByDate[_activeDate]!,
+                        ),
+                        _AboutMovieTab(movie: widget.movie, details: details),
+                        _ReviewsTab(details: details),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
-  Widget _buildInfoPanel() {
-    final genres = <String>[widget.movie.category, 'Драма', 'Триллер'];
+  Widget _buildTrailerPlayer() {
+    if (_youtubeController == null) {
+      if (widget.movie.imageUrl.isNotEmpty) {
+        return Image.network(
+          widget.movie.imageUrl,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => Container(
+            color: const Color(0xFF1E1E1E),
+            alignment: Alignment.center,
+            child: const Icon(
+              Icons.movie_outlined,
+              color: Color(0xFFB8B8B8),
+              size: 48,
+            ),
+          ),
+        );
+      }
+      return Container(
+        color: const Color(0xFF1E1E1E),
+        alignment: Alignment.center,
+        child: const Icon(
+          Icons.movie_outlined,
+          color: Color(0xFFB8B8B8),
+          size: 48,
+        ),
+      );
+    }
+
+    return YoutubePlayer(
+      controller: _youtubeController!,
+      showVideoProgressIndicator: true,
+      progressIndicatorColor: const Color(0xFFE53935),
+      onEnded: (_) {
+        _youtubeController?.pause();
+      },
+    );
+  }
+
+  Widget _buildInfoPanel(MovieFullDetailsData details) {
+    final genres = details.genres.isNotEmpty
+        ? details.genres.take(3).toList(growable: false)
+        : <String>[widget.movie.category];
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -188,8 +258,8 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(color: const Color(0xFF5A5A5A)),
                 ),
-                child: const Text(
-                  '18+',
+                child: Text(
+                  _buildAgeRatingLabel(details.ageRating),
                   style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
                 ),
               ),
@@ -280,27 +350,35 @@ class _TabsHeaderDelegate extends SliverPersistentHeaderDelegate {
 }
 
 class _AboutMovieTab extends StatelessWidget {
-  const _AboutMovieTab({required this.movie});
+  const _AboutMovieTab({required this.movie, required this.details});
 
   final MovieItem movie;
+  final MovieFullDetailsData details;
 
   @override
   Widget build(BuildContext context) {
-    const cast = [
-      ('Айдана Нур', 'АН'),
-      ('Ержан Серик', 'ЕС'),
-      ('Томирис Айт', 'ТА'),
-      ('Ильяс Каир', 'ИК'),
-      ('Madi Omar', 'MO'),
-    ];
+    final cast = details.cast;
+    final description = details.overview.isNotEmpty ? details.overview : movie.description;
+    final durationText = details.runtimeMinutes > 0 ? '${details.runtimeMinutes} мин' : movie.duration;
+    final countryText = details.countries.isNotEmpty ? details.countries.join(', ') : 'Не указана';
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
       children: [
         Text(
-          movie.description,
+          description,
           style: const TextStyle(fontSize: 16, height: 1.45, color: Color(0xFFCFCFCF)),
         ),
+        if (details.tagline != null) ...[
+          const SizedBox(height: 10),
+          Text(
+            details.tagline!,
+            style: const TextStyle(
+              color: Color(0xFF9F9F9F),
+              fontStyle: FontStyle.italic,
+            ),
+          ),
+        ],
         const SizedBox(height: 18),
         const Text(
           'Актеры',
@@ -309,38 +387,56 @@ class _AboutMovieTab extends StatelessWidget {
         const SizedBox(height: 12),
         SizedBox(
           height: 108,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            itemCount: cast.length,
-            separatorBuilder: (_, __) => const SizedBox(width: 12),
-            itemBuilder: (context, index) {
-              final (name, initials) = cast[index];
-              return SizedBox(
-                width: 82,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    CircleAvatar(
-                      radius: 26,
-                      backgroundColor: const Color(0xFFE53935),
-                      child: Text(
-                        initials,
-                        style: const TextStyle(fontWeight: FontWeight.w700),
+          child: cast.isEmpty
+              ? const Center(
+                  child: Text(
+                    'Список актеров недоступен',
+                    style: TextStyle(color: Color(0xFF9A9A9A)),
+                  ),
+                )
+              : ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: cast.length,
+                  separatorBuilder: (_, __) => const SizedBox(width: 12),
+                  itemBuilder: (context, index) {
+                    final actor = cast[index];
+                    final initials = actor.name
+                        .split(' ')
+                        .where((part) => part.trim().isNotEmpty)
+                        .take(2)
+                        .map((part) => part.trim()[0].toUpperCase())
+                        .join();
+                    return SizedBox(
+                      width: 88,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          CircleAvatar(
+                            radius: 26,
+                            backgroundColor: const Color(0xFFE53935),
+                            backgroundImage: actor.profileImageUrl == null
+                                ? null
+                                : NetworkImage(actor.profileImageUrl!),
+                            child: actor.profileImageUrl == null
+                                ? Text(
+                                    initials.isNotEmpty ? initials : '?',
+                                    style: const TextStyle(fontWeight: FontWeight.w700),
+                                  )
+                                : null,
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            actor.name,
+                            textAlign: TextAlign.center,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 12),
+                          ),
+                        ],
                       ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      name,
-                      textAlign: TextAlign.center,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 12),
-                    ),
-                  ],
+                    );
+                  },
                 ),
-              );
-            },
-          ),
         ),
         const SizedBox(height: 18),
         const Text(
@@ -348,11 +444,25 @@ class _AboutMovieTab extends StatelessWidget {
           style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
         ),
         const SizedBox(height: 10),
-        const _DetailRow(label: 'Режиссер', value: 'Аскар Беков'),
-        _DetailRow(label: 'Длительность', value: movie.duration),
-        const _DetailRow(label: 'Страна', value: 'Казахстан'),
+        _DetailRow(label: 'Режиссер', value: details.director ?? 'Не указан'),
+        _DetailRow(label: 'Длительность', value: durationText),
+        _DetailRow(label: 'Страна', value: countryText),
+        _DetailRow(label: 'Дата выхода', value: _formatDate(details.releaseDate)),
+        _DetailRow(
+          label: 'Оригинал',
+          value: details.originalTitle ?? 'Не указано',
+        ),
+        _DetailRow(label: 'Статус', value: details.status ?? 'Не указан'),
       ],
     );
+  }
+
+  String _formatDate(DateTime? date) {
+    if (date == null) return 'Не указана';
+    final day = date.day.toString().padLeft(2, '0');
+    final month = date.month.toString().padLeft(2, '0');
+    final year = date.year.toString();
+    return '$day.$month.$year';
   }
 }
 
@@ -385,15 +495,15 @@ class _DetailRow extends StatelessWidget {
 }
 
 class _ReviewsTab extends StatelessWidget {
-  const _ReviewsTab();
+  const _ReviewsTab({required this.details});
+
+  final MovieFullDetailsData details;
 
   @override
   Widget build(BuildContext context) {
-    const reviews = [
-      _Review(author: 'Nursultan K.', date: '12.03.2026', text: 'Сильная игра актеров, особенно в финале. Сюжет держит до последней сцены.', rating: 9),
-      _Review(author: 'Aruzhan M.', date: '10.03.2026', text: 'Красивый визуал и музыка. В середине немного проседает темп, но в целом очень достойно.', rating: 8),
-      _Review(author: 'Timur S.', date: '08.03.2026', text: 'Неплохой фильм на вечер, но ожидал чуть более неожиданную развязку.', rating: 7),
-    ];
+    final reviews = details.reviews;
+    final ratingText = details.voteAverage > 0 ? '${details.voteAverage.toStringAsFixed(1)} / 10' : '— / 10';
+    final reviewCountText = details.voteCount > 0 ? 'на основе ${details.voteCount} оценок' : 'оценки пока недоступны';
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 20),
@@ -405,17 +515,23 @@ class _ReviewsTab extends StatelessWidget {
             borderRadius: BorderRadius.circular(14),
             border: Border.all(color: const Color(0xFF313131)),
           ),
-          child: const Column(
+          child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('8.5 / 10', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800)),
-              SizedBox(height: 4),
-              Text('на основе 124 отзывов', style: TextStyle(color: Color(0xFFB0B0B0))),
+              Text(ratingText, style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w800)),
+              const SizedBox(height: 4),
+              Text(reviewCountText, style: const TextStyle(color: Color(0xFFB0B0B0))),
             ],
           ),
         ),
         const SizedBox(height: 14),
-        ...reviews.map((review) => _ReviewCard(review: review)),
+        if (reviews.isEmpty)
+          const Text(
+            'Отзывов пока нет.',
+            style: TextStyle(color: Color(0xFFABABAB)),
+          )
+        else
+          ...reviews.map((review) => _ReviewCard(review: review)),
       ],
     );
   }
@@ -424,7 +540,7 @@ class _ReviewsTab extends StatelessWidget {
 class _ReviewCard extends StatelessWidget {
   const _ReviewCard({required this.review});
 
-  final _Review review;
+  final MovieReviewData review;
 
   @override
   Widget build(BuildContext context) {
@@ -443,7 +559,7 @@ class _ReviewCard extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(review.author, style: const TextStyle(fontWeight: FontWeight.w700)),
-              Text(review.date, style: const TextStyle(color: Color(0xFF9E9E9E))),
+              Text(_formatDate(review.createdAt), style: const TextStyle(color: Color(0xFF9E9E9E))),
             ],
           ),
           const SizedBox(height: 8),
@@ -451,17 +567,25 @@ class _ReviewCard extends StatelessWidget {
             children: List.generate(
               5,
               (index) => Icon(
-                index < (review.rating / 2).round() ? Icons.star : Icons.star_border,
+                index < ((review.rating ?? 0) / 2).round() ? Icons.star : Icons.star_border,
                 color: const Color(0xFFE53935),
                 size: 18,
               ),
             ),
           ),
           const SizedBox(height: 8),
-          Text(review.text, style: const TextStyle(color: Color(0xFFD4D4D4), height: 1.35)),
+          Text(review.content, style: const TextStyle(color: Color(0xFFD4D4D4), height: 1.35)),
         ],
       ),
     );
+  }
+
+  String _formatDate(DateTime? date) {
+    if (date == null) return 'Без даты';
+    final day = date.day.toString().padLeft(2, '0');
+    final month = date.month.toString().padLeft(2, '0');
+    final year = date.year.toString();
+    return '$day.$month.$year';
   }
 }
 
@@ -635,16 +759,9 @@ class _Session {
   const _Session({required this.id, required this.time, required this.price});
 }
 
-class _Review {
-  final String author;
-  final String date;
-  final String text;
-  final int rating;
-
-  const _Review({
-    required this.author,
-    required this.date,
-    required this.text,
-    required this.rating,
-  });
+String _buildAgeRatingLabel(String? rawRating) {
+  final rating = rawRating?.trim();
+  if (rating == null || rating.isEmpty) return '—';
+  if (rating.endsWith('+')) return rating;
+  return '$rating+';
 }
