@@ -54,7 +54,11 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
     _youtubeController?.dispose();
     _youtubeController = YoutubePlayerController(
       initialVideoId: trailerYoutubeId,
-      flags: const YoutubePlayerFlags(autoPlay: false, mute: false),
+      flags: const YoutubePlayerFlags(
+        autoPlay: false,
+        mute: false,
+        enableCaption: false,
+      ),
     );
   }
 
@@ -222,13 +226,27 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
       );
     }
 
-    return YoutubePlayer(
-      controller: _youtubeController!,
-      showVideoProgressIndicator: true,
-      progressIndicatorColor: const Color(0xFFE53935),
-      onEnded: (_) {
-        _youtubeController?.pause();
+    return YoutubePlayerBuilder(
+      onEnterFullScreen: () {
+        SystemChrome.setPreferredOrientations([
+          DeviceOrientation.landscapeLeft,
+          DeviceOrientation.landscapeRight,
+        ]);
       },
+      onExitFullScreen: () {
+        SystemChrome.setPreferredOrientations([
+          DeviceOrientation.portraitUp,
+        ]);
+      },
+      player: YoutubePlayer(
+        controller: _youtubeController!,
+        showVideoProgressIndicator: true,
+        progressIndicatorColor: const Color(0xFFE53935),
+        onEnded: (_) {
+          _youtubeController?.pause();
+        },
+      ),
+      builder: (context, player) => player,
     );
   }
 

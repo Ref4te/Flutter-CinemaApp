@@ -150,10 +150,11 @@ class _HomePageState extends State<HomePage> {
                                             fontSize: 14,
                                           ),
                                         ),
-                                        const Spacer(),
-                                        Flexible(
+                                        const SizedBox(width: 8),
+                                        Expanded(
                                           child: Text(
                                             movie.category,
+                                            textAlign: TextAlign.left,
                                             maxLines: 1,
                                             overflow: TextOverflow.ellipsis,
                                             style: const TextStyle(
