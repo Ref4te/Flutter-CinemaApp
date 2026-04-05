@@ -6,6 +6,7 @@ class MovieItem {
   final String imageUrl;
   final String category;
   final int year;
+  final DateTime? releaseDate;
   final String duration;
   final double rating;
   final String description;
@@ -16,6 +17,7 @@ class MovieItem {
     required this.imageUrl,
     required this.category,
     required this.year,
+    required this.releaseDate,
     required this.duration,
     required this.rating,
     required this.description,
@@ -25,8 +27,9 @@ class MovieItem {
     Map<String, dynamic> json, {
     required Map<int, String> genreMap,
   }) {
-    final releaseDate = (json['release_date'] as String?) ?? '';
-    final year = int.tryParse(releaseDate.split('-').first) ?? DateTime.now().year;
+    final releaseDateRaw = (json['release_date'] as String?) ?? '';
+    final releaseDate = DateTime.tryParse(releaseDateRaw);
+    final year = int.tryParse(releaseDateRaw.split('-').first) ?? DateTime.now().year;
     final rating = ((json['vote_average'] ?? 0) as num).toDouble();
     final runtime = json['runtime'] as int?;
 
@@ -51,6 +54,7 @@ class MovieItem {
       imageUrl: _posterUrl(json['poster_path'] as String?),
       category: category,
       year: year,
+      releaseDate: releaseDate,
       duration: _formatDuration(runtime),
       rating: rating,
       description:
