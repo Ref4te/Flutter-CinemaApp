@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:youtube_player_flutter/youtube_player_flutter.dart';
 
 import '../models/movie.dart';
@@ -28,6 +29,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
       initialVideoId: _fallbackTrailerId,
       flags: const YoutubePlayerFlags(autoPlay: false, mute: false),
     );
+    _loadFavoriteStatus();
   }
 
   @override
@@ -66,18 +68,29 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                         pinned: true,
                         snap: false,
                         toolbarHeight: 56,
+                        expandedHeight: 300,
                         title: Text(
                           widget.movie.title,
                           style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
                         ),
+                        flexibleSpace: FlexibleSpaceBar(
+                          background: SafeArea(
+                            bottom: false,
+                            child: Padding(
+                              padding: const EdgeInsets.fromLTRB(16, 64, 16, 16),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(20),
+                                child: player,
+                              ),
+                            ),
+                          ),
+                        ),
                         actions: [
                           IconButton(
-                            onPressed: () {
-                              setState(() => _isFavorite = !_isFavorite);
-                            },
+                            onPressed: _toggleFavorite,
                             icon: Icon(
                               _isFavorite ? Icons.favorite : Icons.favorite_border,
-                              color: _isFavorite ? const Color(0xFFE53935) : null,
+                              color: _isFavorite ? const Color(0xFFE53935) : Colors.white,
                             ),
                             tooltip: 'Избранное',
                           ),
@@ -87,14 +100,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Padding(
-                              padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(20),
-                                child: player,
-                              ),
-                            ),
-                            const SizedBox(height: 14),
+                            const SizedBox(height: 12),
                             _buildInfoPanel(),
                             const SizedBox(height: 18),
                           ],
@@ -174,45 +180,37 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Row(
-            crossAxisAlignment: CrossAxisAlignment.baseline,
-            textBaseline: TextBaseline.alphabetic,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Baseline(
-                baseline: 24,
-                baselineType: TextBaseline.alphabetic,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: const Color(0xFF5A5A5A)),
-                  ),
-                  child: const Text(
-                    '18+',
-                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-                  ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFF5A5A5A)),
+                ),
+                child: const Text(
+                  '18+',
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
                 ),
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: Baseline(
-                  baseline: 24,
-                  baselineType: TextBaseline.alphabetic,
-                  child: Wrap(
-                    spacing: 10,
-                    runSpacing: 8,
-                    children: genres
-                        .map(
-                          (genre) => Chip(
-                            label: Text(genre),
-                            visualDensity: VisualDensity.compact,
-                            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                            backgroundColor: const Color(0xFF1E1E1E),
-                            side: const BorderSide(color: Color(0xFF353535)),
-                            labelStyle: const TextStyle(color: Color(0xFFD0D0D0)),
-                          ),
-                        )
-                        .toList(),
-                  ),
+                child: Wrap(
+                  spacing: 10,
+                  runSpacing: 8,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: genres
+                      .map(
+                        (genre) => Chip(
+                          label: Text(genre),
+                          visualDensity: VisualDensity.compact,
+                          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          backgroundColor: const Color(0xFF1E1E1E),
+                          side: const BorderSide(color: Color(0xFF353535)),
+                          labelStyle: const TextStyle(color: Color(0xFFD0D0D0)),
+                        ),
+                      )
+                      .toList(),
                 ),
               ),
             ],
@@ -220,6 +218,30 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
         ),
       ],
     );
+  }
+
+  Future<void> _loadFavoriteStatus() async {
+    final prefs = await SharedPreferences.getInstance();
+    final favorites = prefs.getStringList('favorites') ?? <String>[];
+    final isFavorite = favorites.contains(widget.movie.id.toString());
+    if (!mounted) return;
+    setState(() => _isFavorite = isFavorite);
+  }
+
+  Future<void> _toggleFavorite() async {
+    final prefs = await SharedPreferences.getInstance();
+    final favorites = prefs.getStringList('favorites') ?? <String>[];
+    final movieId = widget.movie.id.toString();
+
+    if (favorites.contains(movieId)) {
+      favorites.remove(movieId);
+    } else {
+      favorites.add(movieId);
+    }
+
+    await prefs.setStringList('favorites', favorites);
+    if (!mounted) return;
+    setState(() => _isFavorite = favorites.contains(movieId));
   }
 }
 
@@ -459,22 +481,23 @@ class _TicketsTab extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 22),
       children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Container(
-            decoration: BoxDecoration(
-              color: const Color(0xFF1A1A1A),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: const Color(0xFF353535)),
-            ),
-            child: Row(
-              children: items.map((item) {
-                final (filter, title) = item;
-                final isSelected = activeDate == filter;
+        Container(
+          padding: const EdgeInsets.all(4),
+          decoration: BoxDecoration(
+            color: const Color(0xFF1A1A1A),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFF353535)),
+          ),
+          child: Row(
+            children: items.map((item) {
+              final (filter, title) = item;
+              final isSelected = activeDate == filter;
 
-                return Expanded(
+              return Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 2),
                   child: InkWell(
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: BorderRadius.circular(9),
                     onTap: () => onDateSelected(filter),
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 220),
@@ -484,20 +507,21 @@ class _TicketsTab extends StatelessWidget {
                       decoration: BoxDecoration(
                         color: isSelected
                             ? const Color(0xFFE53935)
-                            : Colors.transparent,
-                        borderRadius: BorderRadius.circular(10),
+                            : const Color(0xFF232323),
+                        borderRadius: BorderRadius.circular(9),
                       ),
                       child: Text(
                         title,
                         style: TextStyle(
+                          color: Colors.white,
                           fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
                         ),
                       ),
                     ),
                   ),
-                );
-              }).toList(),
-            ),
+                ),
+              );
+            }).toList(),
           ),
         ),
         const SizedBox(height: 16),
