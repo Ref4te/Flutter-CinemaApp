@@ -35,6 +35,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
 
   @override
   void dispose() {
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     SystemChrome.setPreferredOrientations([
       DeviceOrientation.portraitUp,
     ]);
@@ -228,12 +229,14 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
 
     return YoutubePlayerBuilder(
       onEnterFullScreen: () {
+        SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
         SystemChrome.setPreferredOrientations([
           DeviceOrientation.landscapeLeft,
           DeviceOrientation.landscapeRight,
         ]);
       },
       onExitFullScreen: () {
+        SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
         SystemChrome.setPreferredOrientations([
           DeviceOrientation.portraitUp,
         ]);
@@ -246,7 +249,10 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
           _youtubeController?.pause();
         },
       ),
-      builder: (context, player) => player,
+      builder: (context, player) => Scaffold(
+        backgroundColor: Colors.black,
+        body: Center(child: player),
+      ),
     );
   }
 
