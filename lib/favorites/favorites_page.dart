@@ -16,7 +16,7 @@ class FavoritesPage extends StatefulWidget {
 class _FavoritesPageState extends State<FavoritesPage> {
   static const _favoritesKey = 'favorites';
 
-  late Future<List<MovieItem>> _favoritesFuture;
+  late Future<List<_FavoriteMovieView>> _favoritesFuture;
   final _tmdbService = TmdbService();
 
   @override
@@ -25,15 +25,34 @@ class _FavoritesPageState extends State<FavoritesPage> {
     _favoritesFuture = _loadFavorites();
   }
 
-  Future<List<MovieItem>> _loadFavorites() async {
+  Future<List<_FavoriteMovieView>> _loadFavorites() async {
     final favoriteIds = await _loadFavoriteIds();
-    if (favoriteIds.isEmpty) return const <MovieItem>[];
+    if (favoriteIds.isEmpty) return const <_FavoriteMovieView>[];
 
     final homeData = await _tmdbService.loadHomeData();
     final favoriteSet = favoriteIds.toSet();
-    return homeData.movies
+    final favoriteMovies = homeData.movies
         .where((movie) => favoriteSet.contains(movie.id.toString()))
         .toList(growable: false);
+
+    return Future.wait(
+      favoriteMovies.map((movie) async {
+        try {
+          final details = await _tmdbService.loadMovieDetails(movie.id);
+          return _FavoriteMovieView(
+            movie: movie,
+            genres: details.genres.take(2).toList(growable: false),
+            runtimeMinutes: details.runtimeMinutes,
+          );
+        } catch (_) {
+          return _FavoriteMovieView(
+            movie: movie,
+            genres: [movie.category],
+            runtimeMinutes: 0,
+          );
+        }
+      }),
+    );
   }
 
   Future<List<String>> _loadFavoriteIds() async {
@@ -65,7 +84,7 @@ class _FavoritesPageState extends State<FavoritesPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Избранные')),
-      body: FutureBuilder<List<MovieItem>>(
+      body: FutureBuilder<List<_FavoriteMovieView>>(
         future: _favoritesFuture,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
@@ -85,7 +104,7 @@ class _FavoritesPageState extends State<FavoritesPage> {
             );
           }
 
-          final movies = snapshot.data ?? const <MovieItem>[];
+          final movies = snapshot.data ?? const <_FavoriteMovieView>[];
           if (movies.isEmpty) {
             return const Center(
               child: Padding(
@@ -103,7 +122,14 @@ class _FavoritesPageState extends State<FavoritesPage> {
             padding: const EdgeInsets.all(16),
             itemCount: movies.length,
             itemBuilder: (context, index) {
-              final movie = movies[index];
+              final favoriteMovie = movies[index];
+              final movie = favoriteMovie.movie;
+              final genresText = favoriteMovie.genres.isEmpty
+                  ? movie.category
+                  : favoriteMovie.genres.join(', ');
+              final runtimeText = favoriteMovie.runtimeMinutes > 0
+                  ? '${favoriteMovie.runtimeMinutes} мин'
+                  : movie.duration;
               return Card(
                 color: const Color(0xFF1D1D1D),
                 margin: const EdgeInsets.only(bottom: 12),
@@ -134,7 +160,7 @@ class _FavoritesPageState extends State<FavoritesPage> {
                   ),
                   title: Text(movie.title),
                   subtitle: Text(
-                    '${movie.category} • ${movie.duration}',
+                    '$genresText • $runtimeText',
                     style: const TextStyle(color: Color(0xFF9A9A9A)),
                   ),
                   onTap: () {
@@ -161,4 +187,16 @@ class _FavoritesPageState extends State<FavoritesPage> {
       ),
     );
   }
+}
+
+class _FavoriteMovieView {
+  const _FavoriteMovieView({
+    required this.movie,
+    required this.genres,
+    required this.runtimeMinutes,
+  });
+
+  final MovieItem movie;
+  final List<String> genres;
+  final int runtimeMinutes;
 }

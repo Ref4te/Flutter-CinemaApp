@@ -12,6 +12,16 @@ class TmdbData {
   const TmdbData({required this.banners, required this.movies});
 }
 
+class MovieDetailsData {
+  final List<String> genres;
+  final int runtimeMinutes;
+
+  const MovieDetailsData({
+    required this.genres,
+    required this.runtimeMinutes,
+  });
+}
+
 class TmdbService {
   static const String _apiBaseUrl = 'https://api.themoviedb.org/3';
   static String get _apiKey => dotenv.env['TMDB_API_KEY'] ?? '';
@@ -57,6 +67,21 @@ class TmdbService {
         if (genre['id'] is int && genre['name'] is String)
           genre['id'] as int: genre['name'] as String,
     };
+  }
+
+  Future<MovieDetailsData> loadMovieDetails(int movieId) async {
+    final json = await _getJson('/movie/$movieId');
+    final genresJson = (json['genres'] as List<dynamic>? ?? [])
+        .cast<Map<String, dynamic>>();
+    final runtime = (json['runtime'] as num?)?.toInt() ?? 0;
+    final genres = genresJson
+        .map((genre) => genre['name'] as String?)
+        .whereType<String>()
+        .where((name) => name.trim().isNotEmpty)
+        .map((name) => name.trim())
+        .toList(growable: false);
+
+    return MovieDetailsData(genres: genres, runtimeMinutes: runtime);
   }
 
   Future<Map<String, dynamic>> _getJson(String path) async {
