@@ -94,3 +94,11 @@ class BannerItem {
     );
   }
 }
+
+
+class TmdbHomeData {
+  final List<BannerItem> banners;
+  final List<MovieItem> movies;
+
+  const TmdbHomeData({required this.banners, required this.movies});
+}
