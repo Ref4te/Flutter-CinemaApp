@@ -221,27 +221,35 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
   }
 
   Future<void> _loadFavoriteStatus() async {
-    final prefs = await SharedPreferences.getInstance();
-    final favorites = prefs.getStringList('favorites') ?? <String>[];
-    final isFavorite = favorites.contains(widget.movie.id.toString());
-    if (!mounted) return;
-    setState(() => _isFavorite = isFavorite);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final favorites = prefs.getStringList('favorites') ?? <String>[];
+      final isFavorite = favorites.contains(widget.movie.id.toString());
+      if (!mounted) return;
+      setState(() => _isFavorite = isFavorite);
+    } on PlatformException catch (error) {
+      debugPrint('Не удалось прочитать избранное: $error');
+    }
   }
 
   Future<void> _toggleFavorite() async {
-    final prefs = await SharedPreferences.getInstance();
-    final favorites = prefs.getStringList('favorites') ?? <String>[];
-    final movieId = widget.movie.id.toString();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final favorites = prefs.getStringList('favorites') ?? <String>[];
+      final movieId = widget.movie.id.toString();
 
-    if (favorites.contains(movieId)) {
-      favorites.remove(movieId);
-    } else {
-      favorites.add(movieId);
+      if (favorites.contains(movieId)) {
+        favorites.remove(movieId);
+      } else {
+        favorites.add(movieId);
+      }
+
+      await prefs.setStringList('favorites', favorites);
+      if (!mounted) return;
+      setState(() => _isFavorite = favorites.contains(movieId));
+    } on PlatformException catch (error) {
+      debugPrint('Не удалось обновить избранное: $error');
     }
-
-    await prefs.setStringList('favorites', favorites);
-    if (!mounted) return;
-    setState(() => _isFavorite = favorites.contains(movieId));
   }
 }
 
