@@ -112,17 +112,38 @@ class TmdbService {
     }
 
     final genreMap = await _loadGenres();
-    final popularResponse = await _getJson('/movie/popular');
+    final nowPlayingResponse = await _getJson(
+      '/movie/now_playing',
+      extraQuery: '&region=KZ',
+    );
+    final upcomingResponse = await _getJson(
+      '/movie/upcoming',
+      extraQuery: '&region=KZ',
+    );
     final trendingResponse = await _getJson('/trending/movie/week');
 
-    final rawMovies = (popularResponse['results'] as List<dynamic>? ?? [])
+    final rawNowPlayingMovies = (nowPlayingResponse['results'] as List<dynamic>? ?? [])
+        .cast<Map<String, dynamic>>();
+    final rawUpcomingMovies = (upcomingResponse['results'] as List<dynamic>? ?? [])
         .cast<Map<String, dynamic>>();
     final rawBanners = (trendingResponse['results'] as List<dynamic>? ?? [])
         .cast<Map<String, dynamic>>();
 
-    final movies = rawMovies
+    final combinedMovies = <Map<String, dynamic>>[
+      ...rawNowPlayingMovies,
+      ...rawUpcomingMovies,
+    ];
+    final uniqueMoviesById = <int, Map<String, dynamic>>{};
+    for (final movie in combinedMovies) {
+      final id = movie['id'] as int?;
+      if (id == null) continue;
+      uniqueMoviesById[id] = movie;
+    }
+
+    final movies = uniqueMoviesById.values
         .where((movie) => (movie['poster_path'] as String?)?.isNotEmpty == true)
-        .take(20)
+        .where((movie) => (movie['release_date'] as String?)?.trim().isNotEmpty == true)
+        .take(40)
         .map((movie) => MovieItem.fromTmdb(movie, genreMap: genreMap))
         .toList(growable: false);
 
@@ -245,6 +266,7 @@ class TmdbService {
         [])
         .cast<Map<String, dynamic>>();
     final releaseDate =
+        _extractReleaseDateByCountry(releaseDateResults, 'KZ') ??
         _extractReleaseDateByCountry(releaseDateResults, 'RU') ??
         DateTime.tryParse((json['release_date'] as String?) ?? '');
 
@@ -268,7 +290,7 @@ class TmdbService {
   }
 
   String? _extractAgeRating(List<Map<String, dynamic>> releaseDateResults) {
-    const priority = ['RU', 'US'];
+    const priority = ['KZ', 'RU', 'US'];
     for (final country in priority) {
       final value = _extractCertificationForCountry(releaseDateResults, country);
       if (value != null) return value;
