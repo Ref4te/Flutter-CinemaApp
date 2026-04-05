@@ -15,14 +15,11 @@ class HomePage extends StatefulWidget {
 
 enum _HomeCategory { now, soon }
 
-enum _DateFilter { today, tomorrow, dayAfterTomorrow }
-
 class _HomePageState extends State<HomePage> {
   final TmdbService _tmdbService = TmdbService();
 
   late Future<TmdbData> _homeDataFuture;
   _HomeCategory _activeCategory = _HomeCategory.now;
-  _DateFilter _activeDate = _DateFilter.today;
 
   @override
   void initState() {
@@ -33,7 +30,6 @@ class _HomePageState extends State<HomePage> {
   void _reloadData() {
     setState(() {
       _activeCategory = _HomeCategory.now;
-      _activeDate = _DateFilter.today;
       _homeDataFuture = _tmdbService.loadHomeData();
     });
   }
@@ -86,8 +82,6 @@ class _HomePageState extends State<HomePage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _buildTopBar(context, data.movies),
-                  const SizedBox(height: 14),
-                  _buildDateFilter(),
                   const SizedBox(height: 14),
                   Expanded(
                     child: filteredMovies.isEmpty
@@ -235,63 +229,19 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget _buildDateFilter() {
-    final items = <(_DateFilter, String)>[
-      (_DateFilter.today, 'Сегодня'),
-      (_DateFilter.tomorrow, 'Завтра'),
-      (_DateFilter.dayAfterTomorrow, 'Послезавтра'),
-    ];
-
-    return SizedBox(
-      height: 38,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        itemCount: items.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 8),
-        itemBuilder: (context, index) {
-          final (filter, title) = items[index];
-          final isSelected = _activeDate == filter;
-
-          return GestureDetector(
-            onTap: () {
-              setState(() => _activeDate = filter);
-            },
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 180),
-              padding: const EdgeInsets.symmetric(horizontal: 14),
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: isSelected ? const Color(0x33E53935) : const Color(0xFF1E1E1E),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: isSelected ? const Color(0xFFE53935) : const Color(0xFF343434),
-                ),
-              ),
-              child: Text(
-                title,
-                style: TextStyle(
-                  color: isSelected ? const Color(0xFFE53935) : const Color(0xFFAAAAAA),
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-
   List<MovieItem> _applyFilters(List<MovieItem> movies) {
+    final today = DateTime.now();
+    final todayStart = DateTime(today.year, today.month, today.day);
+
     return movies.where((movie) {
-      final isNowPlaying = movie.id.isEven;
-      final movieDateFilter = _DateFilter.values[movie.id % _DateFilter.values.length];
+      final releaseDate = movie.releaseDate;
+      if (releaseDate == null) return false;
+      final releaseDateOnly = DateTime(releaseDate.year, releaseDate.month, releaseDate.day);
 
       final passCategory = _activeCategory == _HomeCategory.now
-          ? isNowPlaying
-          : !isNowPlaying;
-      final passDate = movieDateFilter == _activeDate;
-
-      return passCategory && passDate;
+          ? !releaseDateOnly.isAfter(todayStart)
+          : releaseDateOnly.isAfter(todayStart);
+      return passCategory;
     }).toList(growable: false);
   }
 }

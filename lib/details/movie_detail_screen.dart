@@ -195,12 +195,28 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
 
   Widget _buildTrailerPlayer() {
     if (_youtubeController == null) {
+      if (widget.movie.imageUrl.isNotEmpty) {
+        return Image.network(
+          widget.movie.imageUrl,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => Container(
+            color: const Color(0xFF1E1E1E),
+            alignment: Alignment.center,
+            child: const Icon(
+              Icons.movie_outlined,
+              color: Color(0xFFB8B8B8),
+              size: 48,
+            ),
+          ),
+        );
+      }
       return Container(
         color: const Color(0xFF1E1E1E),
         alignment: Alignment.center,
-        child: const Text(
-          'Трейлер недоступен',
-          style: TextStyle(color: Color(0xFFB8B8B8)),
+        child: const Icon(
+          Icons.movie_outlined,
+          color: Color(0xFFB8B8B8),
+          size: 48,
         ),
       );
     }
