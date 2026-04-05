@@ -3,8 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../details/movie_detail_screen.dart';
-import '../models/movie.dart';
-import '../services/tmdb_service.dart';
+import '../../../domain/entities/movie.dart';
+import '../../../data/repositories/tmdb_repository.dart';
 
 class FavoritesPage extends StatefulWidget {
   const FavoritesPage({super.key});
@@ -17,7 +17,7 @@ class _FavoritesPageState extends State<FavoritesPage> {
   static const _favoritesKey = 'favorites';
 
   late Future<List<_FavoriteMovieView>> _favoritesFuture;
-  final _tmdbService = TmdbService();
+  final _tmdbRepository = TmdbRepository();
 
   @override
   void initState() {
@@ -29,7 +29,7 @@ class _FavoritesPageState extends State<FavoritesPage> {
     final favoriteIds = await _loadFavoriteIds();
     if (favoriteIds.isEmpty) return const <_FavoriteMovieView>[];
 
-    final homeData = await _tmdbService.loadHomeData();
+    final homeData = await _tmdbRepository.loadHomeData();
     final favoriteSet = favoriteIds.toSet();
     final favoriteMovies = homeData.movies
         .where((movie) => favoriteSet.contains(movie.id.toString()))
@@ -38,7 +38,7 @@ class _FavoritesPageState extends State<FavoritesPage> {
     return Future.wait(
       favoriteMovies.map((movie) async {
         try {
-          final details = await _tmdbService.loadMovieDetails(movie.id);
+          final details = await _tmdbRepository.loadMovieDetails(movie.id);
           return _FavoriteMovieView(
             movie: movie,
             genres: details.genres.take(2).toList(growable: false),

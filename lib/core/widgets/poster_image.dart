@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 
 class PosterImage extends StatelessWidget {
-  final String url;
   const PosterImage({super.key, required this.url});
+
+  final String url;
 
   @override
   Widget build(BuildContext context) {

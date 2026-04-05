@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart'; // Импорт Firebase Auth
-import '../local_library/components.dart';
+import '../../widgets/common/form_widgets.dart';
 import '../navigation/main_navigation_screen.dart';
 import 'registration_page.dart';
 
@@ -43,18 +43,18 @@ class _LoginFormState extends State<LoginForm> {
 
     // 1. Локальные проверки
     if (email.isEmpty || password.isEmpty) {
-      showMessage(context, "Please fill in all fields");
+      showAppMessage(context, "Please fill in all fields");
       return;
     }
 
     final emailRegex = RegExp(r'^[\w-\.]+@(gmail\.com|mail\.ru)$');
     if (!emailRegex.hasMatch(email)) {
-      showMessage(context, "Only gmail.com or mail.ru allowed");
+      showAppMessage(context, "Only gmail.com or mail.ru allowed");
       return;
     }
 
     if (password.length < 6) {
-      showMessage(context, "Password is too short");
+      showAppMessage(context, "Password is too short");
       return;
     }
 
@@ -70,7 +70,7 @@ class _LoginFormState extends State<LoginForm> {
       if (!mounted) return;
 
       // Успех
-      showMessage(context, "Welcome back! ✅", isError: false);
+      showAppMessage(context, "Welcome back! ✅", isError: false);
 
       Navigator.pushAndRemoveUntil(
         context,
@@ -89,9 +89,9 @@ class _LoginFormState extends State<LoginForm> {
       } else if (e.code == 'user-disabled') {
         message = "This user has been disabled";
       }
-      showMessage(context, message);
+      showAppMessage(context, message);
     } catch (e) {
-      showMessage(context, "An unexpected error occurred");
+      showAppMessage(context, "An unexpected error occurred");
     } finally {
       if (mounted) setState(() => _isLoading = false); // Выключаем загрузку
     }
@@ -111,12 +111,12 @@ class _LoginFormState extends State<LoginForm> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          buildTextField(
+          AppTextField(
             controller: _emailController,
             label: 'Email',
             formatters: [FilteringTextInputFormatter.deny(RegExp(r'\s'))],
           ),
-          buildTextField(
+          AppTextField(
             controller: _passwordController,
             label: 'Password',
             isPassword: true,
@@ -127,14 +127,14 @@ class _LoginFormState extends State<LoginForm> {
           // Если идет загрузка — показываем индикатор, иначе — кнопку
           _isLoading
               ? const CircularProgressIndicator(color: Color(0xFFE50B14))
-              : buildButton(
+              : AppPrimaryButton(
             text: "Sign In",
             color: const Color(0xFFE50B14),
             onPressed: _handleSignIn,
           ),
 
           const SizedBox(height: 12),
-          buildButton(
+          AppPrimaryButton(
             text: "Sign Up",
             color: Colors.black87,
             onPressed: _navigateToSignUp,

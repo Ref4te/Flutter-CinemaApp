@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart'; // Импорт Firebase Auth
-import '../local_library/components.dart';
+import '../../widgets/common/form_widgets.dart';
 import '../navigation/main_navigation_screen.dart';
 
 class RegistrationPage extends StatelessWidget {
@@ -48,24 +48,24 @@ class _SignUpFormState extends State<SignUpForm> {
 
     // 1. ПЕРВИЧНАЯ ВАЛИДАЦИЯ
     if (firstName.isEmpty || lastName.isEmpty || email.isEmpty || password.isEmpty) {
-      showMessage(context, "All fields are required");
+      showAppMessage(context, "All fields are required");
       return;
     }
 
     // Проверка формата почты (твое условие: gmail или mail.ru)
     final emailRegex = RegExp(r'^[\w-\.]+@(gmail\.com|mail\.ru)$');
     if (!emailRegex.hasMatch(email)) {
-      showMessage(context, "Invalid email format (use gmail.com or mail.ru)");
+      showAppMessage(context, "Invalid email format (use gmail.com or mail.ru)");
       return;
     }
 
     if (password.length < 6) {
-      showMessage(context, "Password must be at least 6 characters");
+      showAppMessage(context, "Password must be at least 6 characters");
       return;
     }
 
     if (password != confirmPassword) {
-      showMessage(context, "Passwords do not match");
+      showAppMessage(context, "Passwords do not match");
       return;
     }
 
@@ -88,7 +88,7 @@ class _SignUpFormState extends State<SignUpForm> {
 
       if (!mounted) return;
 
-      showMessage(context, "Welcome, $firstName! ✅", isError: false);
+      showAppMessage(context, "Welcome, $firstName! ✅", isError: false);
 
       // 3. ПЕРЕХОД НА ГЛАВНЫЙ ЭКРАН
       Navigator.pushAndRemoveUntil(
@@ -106,9 +106,9 @@ class _SignUpFormState extends State<SignUpForm> {
       } else if (e.code == 'invalid-email') {
         message = "Invalid email address";
       }
-      showMessage(context, message);
+      showAppMessage(context, message);
     } catch (e) {
-      showMessage(context, "An error occurred: ${e.toString()}");
+      showAppMessage(context, "An error occurred: ${e.toString()}");
     } finally {
       // Выключаем загрузку в любом случае (успех или ошибка)
       if (mounted) setState(() => _isLoading = false);
@@ -137,20 +137,20 @@ class _SignUpFormState extends State<SignUpForm> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          buildTextField(controller: _firstNameController, label: 'First Name'),
-          buildTextField(controller: _lastNameController, label: 'Last Name'),
-          buildTextField(
+          AppTextField(controller: _firstNameController, label: 'First Name'),
+          AppTextField(controller: _lastNameController, label: 'Last Name'),
+          AppTextField(
             controller: _emailController,
             label: 'Email',
             formatters: [FilteringTextInputFormatter.deny(RegExp(r'\s'))], // Запрет пробелов
           ),
-          buildTextField(
+          AppTextField(
             controller: _passwordController,
             label: 'Password',
             isPassword: true,
             formatters: [FilteringTextInputFormatter.deny(RegExp(r'\s'))],
           ),
-          buildTextField(
+          AppTextField(
             controller: _confirmPasswordController,
             label: 'Confirm Password',
             isPassword: true,
@@ -161,7 +161,7 @@ class _SignUpFormState extends State<SignUpForm> {
           // Условный рендеринг кнопки или загрузки
           _isLoading
               ? const CircularProgressIndicator(color: Color(0xFFE50B14))
-              : buildButton(
+              : AppPrimaryButton(
             text: "Sign Up",
             color: const Color(0xFFE50B14),
             onPressed: _handleSignUp,
