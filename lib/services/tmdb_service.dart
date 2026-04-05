@@ -240,7 +240,13 @@ class TmdbService {
     final tagline = (json['tagline'] as String?)?.trim();
     final originalTitle = (json['original_title'] as String?)?.trim();
     final status = (json['status'] as String?)?.trim();
-    final releaseDate = DateTime.tryParse((json['release_date'] as String?) ?? '');
+    final releaseDateResults = ((json['release_dates'] as Map<String, dynamic>?)?['results']
+            as List<dynamic>? ??
+        [])
+        .cast<Map<String, dynamic>>();
+    final releaseDate =
+        _extractReleaseDateByCountry(releaseDateResults, 'RU') ??
+        DateTime.tryParse((json['release_date'] as String?) ?? '');
 
     return MovieFullDetailsData(
       genres: genres,
@@ -293,6 +299,22 @@ class TmdbService {
         if (certification != null && certification.isNotEmpty) {
           return certification;
         }
+      }
+    }
+    return null;
+  }
+
+  DateTime? _extractReleaseDateByCountry(
+    List<Map<String, dynamic>> releaseDateResults,
+    String countryCode,
+  ) {
+    for (final result in releaseDateResults) {
+      if (result['iso_3166_1'] != countryCode) continue;
+      final releaseDates = (result['release_dates'] as List<dynamic>? ?? [])
+          .cast<Map<String, dynamic>>();
+      for (final release in releaseDates) {
+        final date = DateTime.tryParse((release['release_date'] as String?) ?? '');
+        if (date != null) return date;
       }
     }
     return null;

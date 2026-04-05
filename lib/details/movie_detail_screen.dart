@@ -453,12 +453,6 @@ class _AboutMovieTab extends StatelessWidget {
           value: details.originalTitle ?? 'Не указано',
         ),
         _DetailRow(label: 'Статус', value: details.status ?? 'Не указан'),
-        _DetailRow(
-          label: 'Рейтинг TMDB',
-          value: details.voteAverage > 0
-              ? '${details.voteAverage.toStringAsFixed(1)} (${details.voteCount})'
-              : 'Нет данных',
-        ),
       ],
     );
   }
