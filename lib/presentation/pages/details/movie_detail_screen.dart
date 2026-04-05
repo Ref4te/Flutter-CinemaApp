@@ -88,119 +88,154 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
         }
 
         final details = snapshot.data!;
+        final youtubeController = _youtubeController;
+        if (youtubeController == null) {
+          return _buildMovieDetailsScaffold(details: details, trailerPlayer: null);
+        }
 
-        return DefaultTabController(
-          length: 3,
-          child: Scaffold(
-            body: Column(
-              children: [
-                Expanded(
-                  child: NestedScrollView(
-                    headerSliverBuilder: (_, __) {
-                      return [
-                        SliverAppBar(
-                          floating: false,
-                          pinned: true,
-                          snap: false,
-                          toolbarHeight: 56,
-                          expandedHeight: 300,
-                          title: Text(
-                            widget.movie.title,
-                            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-                          ),
-                          flexibleSpace: FlexibleSpaceBar(
-                            background: SafeArea(
-                              bottom: false,
-                              child: Padding(
-                                padding: const EdgeInsets.fromLTRB(16, 64, 16, 16),
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(20),
-                                  child: _buildTrailerPlayer(),
-                                ),
-                              ),
-                            ),
-                          ),
-                          actions: [
-                            IconButton(
-                              onPressed: _toggleFavorite,
-                              icon: Icon(
-                                _isFavorite ? Icons.favorite : Icons.favorite_border,
-                                color: _isFavorite ? const Color(0xFFE53935) : Colors.white,
-                              ),
-                              tooltip: 'Избранное',
-                            ),
-                          ],
-                        ),
-                        SliverToBoxAdapter(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const SizedBox(height: 12),
-                              _buildInfoPanel(details),
-                              const SizedBox(height: 18),
-                            ],
-                          ),
-                        ),
-                        SliverPersistentHeader(
-                          pinned: true,
-                          delegate: _TabsHeaderDelegate(
-                            child: Container(
-                              color: const Color(0xFF121212),
-                              padding: const EdgeInsets.symmetric(horizontal: 16),
-                              alignment: Alignment.centerLeft,
-                              child: TabBar(
-                                isScrollable: false,
-                                tabAlignment: TabAlignment.fill,
-                                dividerColor: Colors.transparent,
-                                labelColor: Colors.white,
-                                unselectedLabelColor: const Color(0xFF888888),
-                                indicatorColor: const Color(0xFFE53935),
-                                indicatorWeight: 4,
-                                labelStyle: const TextStyle(
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 15,
-                                ),
-                                unselectedLabelStyle: const TextStyle(
-                                  fontWeight: FontWeight.w500,
-                                  fontSize: 15,
-                                ),
-                                tabs: const [
-                                  Tab(text: 'Билеты'),
-                                  Tab(text: 'О фильме'),
-                                  Tab(text: 'Отзывы'),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                      ];
-                    },
-                    body: TabBarView(
-                      children: [
-                        _TicketsTab(
-                          movieTitle: widget.movie.title,
-                          activeDate: _activeDate,
-                          onDateSelected: (value) {
-                            setState(() => _activeDate = value);
-                          },
-                          sessions: _sessionsByDate[_activeDate]!,
-                        ),
-                        _AboutMovieTab(movie: widget.movie, details: details),
-                        _ReviewsTab(details: details),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
+        return YoutubePlayerBuilder(
+          onEnterFullScreen: () {
+            SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+            SystemChrome.setPreferredOrientations([
+              DeviceOrientation.landscapeLeft,
+              DeviceOrientation.landscapeRight,
+            ]);
+          },
+          onExitFullScreen: () {
+            SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+            SystemChrome.setPreferredOrientations([
+              DeviceOrientation.portraitUp,
+            ]);
+          },
+          player: YoutubePlayer(
+            controller: youtubeController,
+            showVideoProgressIndicator: true,
+            progressIndicatorColor: const Color(0xFFE53935),
+            onEnded: (_) {
+              _youtubeController?.pause();
+            },
           ),
+          builder: (context, player) =>
+              _buildMovieDetailsScaffold(details: details, trailerPlayer: player),
         );
       },
     );
   }
 
-  Widget _buildTrailerPlayer() {
-    if (_youtubeController == null) {
+  Widget _buildMovieDetailsScaffold({
+    required MovieFullDetailsData details,
+    required Widget? trailerPlayer,
+  }) {
+    return DefaultTabController(
+      length: 3,
+      child: Scaffold(
+        body: Column(
+          children: [
+            Expanded(
+              child: NestedScrollView(
+                headerSliverBuilder: (_, __) {
+                  return [
+                    SliverAppBar(
+                      floating: false,
+                      pinned: true,
+                      snap: false,
+                      toolbarHeight: 56,
+                      expandedHeight: 300,
+                      title: Text(
+                        widget.movie.title,
+                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                      ),
+                      flexibleSpace: FlexibleSpaceBar(
+                        background: SafeArea(
+                          bottom: false,
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 64, 16, 16),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(20),
+                              child: _buildTrailerPlayer(player: trailerPlayer),
+                            ),
+                          ),
+                        ),
+                      ),
+                      actions: [
+                        IconButton(
+                          onPressed: _toggleFavorite,
+                          icon: Icon(
+                            _isFavorite ? Icons.favorite : Icons.favorite_border,
+                            color: _isFavorite ? const Color(0xFFE53935) : Colors.white,
+                          ),
+                          tooltip: 'Избранное',
+                        ),
+                      ],
+                    ),
+                    SliverToBoxAdapter(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const SizedBox(height: 12),
+                          _buildInfoPanel(details),
+                          const SizedBox(height: 18),
+                        ],
+                      ),
+                    ),
+                    SliverPersistentHeader(
+                      pinned: true,
+                      delegate: _TabsHeaderDelegate(
+                        child: Container(
+                          color: const Color(0xFF121212),
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          alignment: Alignment.centerLeft,
+                          child: TabBar(
+                            isScrollable: false,
+                            tabAlignment: TabAlignment.fill,
+                            dividerColor: Colors.transparent,
+                            labelColor: Colors.white,
+                            unselectedLabelColor: const Color(0xFF888888),
+                            indicatorColor: const Color(0xFFE53935),
+                            indicatorWeight: 4,
+                            labelStyle: const TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 15,
+                            ),
+                            unselectedLabelStyle: const TextStyle(
+                              fontWeight: FontWeight.w500,
+                              fontSize: 15,
+                            ),
+                            tabs: const [
+                              Tab(text: 'Билеты'),
+                              Tab(text: 'О фильме'),
+                              Tab(text: 'Отзывы'),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ];
+                },
+                body: TabBarView(
+                  children: [
+                    _TicketsTab(
+                      movieTitle: widget.movie.title,
+                      activeDate: _activeDate,
+                      onDateSelected: (value) {
+                        setState(() => _activeDate = value);
+                      },
+                      sessions: _sessionsByDate[_activeDate]!,
+                    ),
+                    _AboutMovieTab(movie: widget.movie, details: details),
+                    _ReviewsTab(details: details),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTrailerPlayer({required Widget? player}) {
+    if (player == null) {
       if (widget.movie.imageUrl.isNotEmpty) {
         return Image.network(
           widget.movie.imageUrl,
@@ -227,32 +262,9 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
       );
     }
 
-    return YoutubePlayerBuilder(
-      onEnterFullScreen: () {
-        SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
-        SystemChrome.setPreferredOrientations([
-          DeviceOrientation.landscapeLeft,
-          DeviceOrientation.landscapeRight,
-        ]);
-      },
-      onExitFullScreen: () {
-        SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
-        SystemChrome.setPreferredOrientations([
-          DeviceOrientation.portraitUp,
-        ]);
-      },
-      player: YoutubePlayer(
-        controller: _youtubeController!,
-        showVideoProgressIndicator: true,
-        progressIndicatorColor: const Color(0xFFE53935),
-        onEnded: (_) {
-          _youtubeController?.pause();
-        },
-      ),
-      builder: (context, player) => Scaffold(
-        backgroundColor: Colors.black,
-        body: Center(child: player),
-      ),
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: Center(child: player),
     );
   }
 
