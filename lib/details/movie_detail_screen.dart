@@ -137,6 +137,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                   body: TabBarView(
                     children: [
                       _TicketsTab(
+                        movieTitle: widget.movie.title,
                         activeDate: _activeDate,
                         onDateSelected: (value) {
                           setState(() => _activeDate = value);
@@ -436,11 +437,13 @@ class _ReviewCard extends StatelessWidget {
 
 class _TicketsTab extends StatelessWidget {
   const _TicketsTab({
+    required this.movieTitle,
     required this.activeDate,
     required this.onDateSelected,
     required this.sessions,
   });
 
+  final String movieTitle;
   final _TicketDateFilter activeDate;
   final ValueChanged<_TicketDateFilter> onDateSelected;
   final List<_CinemaSessions> sessions;
@@ -519,7 +522,12 @@ class _TicketsTab extends StatelessWidget {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (_) => SeatSelectionScreen(sessionId: session.id),
+                            builder: (_) => SeatSelectionScreen(
+                              sessionId: session.id,
+                              movieTitle: movieTitle,
+                              hallName: item.cinemaName,
+                              sessionTime: session.time,
+                            ),
                           ),
                         );
                       },
