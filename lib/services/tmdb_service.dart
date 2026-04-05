@@ -112,26 +112,26 @@ class TmdbService {
     }
 
     final genreMap = await _loadGenres();
-    final nowPlayingResponse = await _getJson(
-      '/movie/now_playing',
-      extraQuery: '&region=KZ',
+    final discoverPage1Response = await _getJson(
+      '/discover/movie',
+      extraQuery: '&region=KZ&sort_by=popularity.desc&include_adult=false',
     );
-    final upcomingResponse = await _getJson(
-      '/movie/upcoming',
-      extraQuery: '&region=KZ',
+    final discoverPage2Response = await _getJson(
+      '/discover/movie',
+      extraQuery: '&region=KZ&sort_by=popularity.desc&include_adult=false&page=2',
     );
     final trendingResponse = await _getJson('/trending/movie/week');
 
-    final rawNowPlayingMovies = (nowPlayingResponse['results'] as List<dynamic>? ?? [])
+    final rawDiscoverPage1Movies = (discoverPage1Response['results'] as List<dynamic>? ?? [])
         .cast<Map<String, dynamic>>();
-    final rawUpcomingMovies = (upcomingResponse['results'] as List<dynamic>? ?? [])
+    final rawDiscoverPage2Movies = (discoverPage2Response['results'] as List<dynamic>? ?? [])
         .cast<Map<String, dynamic>>();
     final rawBanners = (trendingResponse['results'] as List<dynamic>? ?? [])
         .cast<Map<String, dynamic>>();
 
     final combinedMovies = <Map<String, dynamic>>[
-      ...rawNowPlayingMovies,
-      ...rawUpcomingMovies,
+      ...rawDiscoverPage1Movies,
+      ...rawDiscoverPage2Movies,
     ];
     final uniqueMoviesById = <int, Map<String, dynamic>>{};
     for (final movie in combinedMovies) {
@@ -367,8 +367,13 @@ class TmdbService {
   }
 
   Future<Map<String, dynamic>> _getJson(String path, {String extraQuery = ''}) async {
+    final normalizedExtra = extraQuery.isEmpty
+        ? ''
+        : extraQuery.startsWith('&')
+            ? extraQuery
+            : '&$extraQuery';
     final uri = Uri.parse(
-      '$_apiBaseUrl$path?api_key=$_apiKey&language=$_language&page=1$extraQuery',
+      '$_apiBaseUrl$path?api_key=$_apiKey&language=$_language$normalizedExtra',
     );
     final response = await http.get(uri);
 
