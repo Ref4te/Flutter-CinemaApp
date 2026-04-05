@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../navigation/main_navigation_screen.dart';
-import 'seat_selection_screen.dart';
 
 class CheckoutScreen extends StatelessWidget {
   const CheckoutScreen({
@@ -16,7 +15,7 @@ class CheckoutScreen extends StatelessWidget {
   final String movieTitle;
   final String hallName;
   final String sessionTime;
-  final List<TicketSeat> seats;
+  final List<CheckoutSeatLine> seats;
   final int totalPrice;
 
   Future<void> _payDemo(BuildContext context) async {
@@ -35,8 +34,6 @@ class CheckoutScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final seatsText = seats.map((seat) => 'Ряд ${seat.row}, Место ${seat.seat}').join('\n');
-
     return Scaffold(
       appBar: AppBar(
         title: const Text('Оформление'),
@@ -67,9 +64,17 @@ class CheckoutScreen extends StatelessWidget {
                   _CheckoutRow(label: 'Зал', value: hallName),
                   _CheckoutRow(label: 'Время', value: sessionTime),
                   const SizedBox(height: 8),
-                  const Text('Места', style: TextStyle(color: Color(0xFFAFAFAF))),
-                  const SizedBox(height: 6),
-                  Text(seatsText, style: const TextStyle(fontWeight: FontWeight.w600)),
+                  const Text('Места', style: TextStyle(color: Color(0xFFAFAFAF), fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 8),
+                  ...seats.map(
+                    (seat) => Padding(
+                      padding: const EdgeInsets.only(bottom: 4),
+                      child: Text(
+                        'Ряд ${seat.row}, Место ${seat.seat} • ${seat.tariff} • ${seat.price} ₸',
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  ),
                   const Divider(height: 22, color: Color(0xFF3A3A3A)),
                   Text(
                     'Итого: $totalPrice ₸',
@@ -125,4 +130,18 @@ class _CheckoutRow extends StatelessWidget {
       ),
     );
   }
+}
+
+class CheckoutSeatLine {
+  const CheckoutSeatLine({
+    required this.row,
+    required this.seat,
+    required this.tariff,
+    required this.price,
+  });
+
+  final int row;
+  final int seat;
+  final String tariff;
+  final int price;
 }
