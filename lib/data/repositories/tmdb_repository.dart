@@ -18,6 +18,10 @@ class TmdbRepository {
       );
     }
 
+    final todayDate = DateTime.now();
+    final todayDateString =
+        '${todayDate.year.toString().padLeft(4, '0')}-${todayDate.month.toString().padLeft(2, '0')}-${todayDate.day.toString().padLeft(2, '0')}';
+
     final genreMap = await _loadGenres();
     final discoverPage1Response = await _getJson(
       '/discover/movie',
@@ -28,12 +32,14 @@ class TmdbRepository {
       extraQuery: '&region=KZ&sort_by=popularity.desc&include_adult=false&page=2',
     );
     final upcomingPage1Response = await _getJson(
-      '/movie/upcoming',
-      extraQuery: '&region=KZ',
+      '/discover/movie',
+      extraQuery:
+          '&include_adult=false&sort_by=popularity.desc&release_date.gte=$todayDateString&with_release_type=2|3|4|5&page=1',
     );
     final upcomingPage2Response = await _getJson(
-      '/movie/upcoming',
-      extraQuery: '&region=KZ&page=2',
+      '/discover/movie',
+      extraQuery:
+          '&include_adult=false&sort_by=popularity.desc&release_date.gte=$todayDateString&with_release_type=2|3|4|5&page=2',
     );
     final trendingResponse = await _getJson('/trending/movie/week');
 
