@@ -55,10 +55,10 @@ class TmdbRepository {
         .cast<Map<String, dynamic>>();
 
     final combinedMovies = <Map<String, dynamic>>[
-      ...rawDiscoverPage1Movies,
-      ...rawDiscoverPage2Movies,
       ...rawUpcomingPage1Movies,
       ...rawUpcomingPage2Movies,
+      ...rawDiscoverPage1Movies,
+      ...rawDiscoverPage2Movies,
     ];
     final uniqueMoviesById = <int, Map<String, dynamic>>{};
     for (final movie in combinedMovies) {
@@ -70,7 +70,7 @@ class TmdbRepository {
     final movies = uniqueMoviesById.values
         .where((movie) => (movie['poster_path'] as String?)?.isNotEmpty == true)
         .where((movie) => (movie['release_date'] as String?)?.trim().isNotEmpty == true)
-        .take(40)
+        .take(120)
         .map((movie) => MovieItem.fromTmdb(movie, genreMap: genreMap))
         .toList(growable: false);
 
