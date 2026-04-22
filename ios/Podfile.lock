@@ -62,12 +62,16 @@ PODS:
   - GTMSessionFetcher/Core (5.2.0)
   - OrderedSet (6.0.3)
   - RecaptchaInterop (101.0.0)
+  - shared_preferences_foundation (0.0.1):
+    - Flutter
+    - FlutterMacOS
 
 DEPENDENCIES:
   - firebase_auth (from `.symlinks/plugins/firebase_auth/ios`)
   - firebase_core (from `.symlinks/plugins/firebase_core/ios`)
   - Flutter (from `Flutter`)
   - flutter_inappwebview_ios (from `.symlinks/plugins/flutter_inappwebview_ios/ios`)
+  - shared_preferences_foundation (from `.symlinks/plugins/shared_preferences_foundation/darwin`)
 
 SPEC REPOS:
   trunk:
@@ -92,6 +96,8 @@ EXTERNAL SOURCES:
     :path: Flutter
   flutter_inappwebview_ios:
     :path: ".symlinks/plugins/flutter_inappwebview_ios/ios"
+  shared_preferences_foundation:
+    :path: ".symlinks/plugins/shared_preferences_foundation/darwin"
 
 SPEC CHECKSUMS:
   Firebase: 065f2bb395062046623036d8e6dc857bc2521d56
@@ -109,6 +115,7 @@ SPEC CHECKSUMS:
   GTMSessionFetcher: 904bdd2a82c635bcd6f44edf94cc8775c5d1d6e6
   OrderedSet: e539b66b644ff081c73a262d24ad552a69be3a94
   RecaptchaInterop: 11e0b637842dfb48308d242afc3f448062325aba
+  shared_preferences_foundation: 7036424c3d8ec98dfe75ff1667cb0cd531ec82bb
 
 PODFILE CHECKSUM: 3c63482e143d1b91d2d2560aee9fb04ecc74ac7e
 
