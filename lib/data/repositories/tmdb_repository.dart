@@ -27,11 +27,23 @@ class TmdbRepository {
       '/discover/movie',
       extraQuery: '&region=KZ&sort_by=popularity.desc&include_adult=false&page=2',
     );
+    final upcomingPage1Response = await _getJson(
+      '/movie/upcoming',
+      extraQuery: '&region=KZ',
+    );
+    final upcomingPage2Response = await _getJson(
+      '/movie/upcoming',
+      extraQuery: '&region=KZ&page=2',
+    );
     final trendingResponse = await _getJson('/trending/movie/week');
 
     final rawDiscoverPage1Movies = (discoverPage1Response['results'] as List<dynamic>? ?? [])
         .cast<Map<String, dynamic>>();
     final rawDiscoverPage2Movies = (discoverPage2Response['results'] as List<dynamic>? ?? [])
+        .cast<Map<String, dynamic>>();
+    final rawUpcomingPage1Movies = (upcomingPage1Response['results'] as List<dynamic>? ?? [])
+        .cast<Map<String, dynamic>>();
+    final rawUpcomingPage2Movies = (upcomingPage2Response['results'] as List<dynamic>? ?? [])
         .cast<Map<String, dynamic>>();
     final rawBanners = (trendingResponse['results'] as List<dynamic>? ?? [])
         .cast<Map<String, dynamic>>();
@@ -39,6 +51,8 @@ class TmdbRepository {
     final combinedMovies = <Map<String, dynamic>>[
       ...rawDiscoverPage1Movies,
       ...rawDiscoverPage2Movies,
+      ...rawUpcomingPage1Movies,
+      ...rawUpcomingPage2Movies,
     ];
     final uniqueMoviesById = <int, Map<String, dynamic>>{};
     for (final movie in combinedMovies) {

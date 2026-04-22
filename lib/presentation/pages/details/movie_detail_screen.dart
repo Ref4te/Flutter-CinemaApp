@@ -398,6 +398,13 @@ class _AboutMovieTab extends StatelessWidget {
     final description = details.overview.isNotEmpty ? details.overview : movie.description;
     final durationText = details.runtimeMinutes > 0 ? '${details.runtimeMinutes} мин' : movie.duration;
     final countryText = details.countries.isNotEmpty ? details.countries.join(', ') : 'Не указана';
+    final isAnimationMovie = details.genres.any(
+      (genre) => genre.toLowerCase().contains('мульт') || genre.toLowerCase().contains('анимац'),
+    );
+    final castSectionTitle = isAnimationMovie ? 'Актеры озвучки' : 'Актеры';
+    final emptyCastMessage = isAnimationMovie
+        ? 'Список актеров озвучки недоступен'
+        : 'Список актеров недоступен';
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
@@ -417,17 +424,17 @@ class _AboutMovieTab extends StatelessWidget {
           ),
         ],
         const SizedBox(height: 18),
-        const Text(
-          'Актеры',
-          style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+        Text(
+          castSectionTitle,
+          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
         ),
         const SizedBox(height: 12),
         SizedBox(
           height: 108,
           child: cast.isEmpty
-              ? const Center(
+              ? Center(
                   child: Text(
-                    'Список актеров недоступен',
+                    emptyCastMessage,
                     style: TextStyle(color: Color(0xFF9A9A9A)),
                   ),
                 )
