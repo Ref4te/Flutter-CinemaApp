@@ -126,6 +126,8 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
     required MovieFullDetailsData details,
     required Widget? trailerPlayer,
   }) {
+    final canBookTickets = _isReleasedStatus(details.status);
+
     return DefaultTabController(
       length: 3,
       child: Scaffold(
@@ -217,6 +219,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                     _TicketsTab(
                       movieTitle: widget.movie.title,
                       activeDate: _activeDate,
+                      canBookTickets: canBookTickets,
                       onDateSelected: (value) {
                         setState(() => _activeDate = value);
                       },
@@ -358,6 +361,16 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
       debugPrint('Не удалось обновить избранное: $error');
     }
   }
+
+  bool _isReleasedStatus(String? status) {
+    if (status == null) return false;
+    final normalized = status.trim().toLowerCase();
+    if (normalized.isEmpty) return false;
+
+    return normalized == 'released' ||
+        normalized.contains('вышел') ||
+        normalized.contains('выпущен');
+  }
 }
 
 class _TabsHeaderDelegate extends SliverPersistentHeaderDelegate {
@@ -398,6 +411,13 @@ class _AboutMovieTab extends StatelessWidget {
     final description = details.overview.isNotEmpty ? details.overview : movie.description;
     final durationText = details.runtimeMinutes > 0 ? '${details.runtimeMinutes} мин' : movie.duration;
     final countryText = details.countries.isNotEmpty ? details.countries.join(', ') : 'Не указана';
+    final isAnimationMovie = details.genres.any(
+      (genre) => genre.toLowerCase().contains('мульт') || genre.toLowerCase().contains('анимац'),
+    );
+    final castSectionTitle = isAnimationMovie ? 'Актеры озвучки' : 'Актеры';
+    final emptyCastMessage = isAnimationMovie
+        ? 'Список актеров озвучки недоступен'
+        : 'Список актеров недоступен';
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
@@ -417,17 +437,17 @@ class _AboutMovieTab extends StatelessWidget {
           ),
         ],
         const SizedBox(height: 18),
-        const Text(
-          'Актеры',
-          style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+        Text(
+          castSectionTitle,
+          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
         ),
         const SizedBox(height: 12),
         SizedBox(
           height: 108,
           child: cast.isEmpty
-              ? const Center(
+              ? Center(
                   child: Text(
-                    'Список актеров недоступен',
+                    emptyCastMessage,
                     style: TextStyle(color: Color(0xFF9A9A9A)),
                   ),
                 )
@@ -630,12 +650,14 @@ class _TicketsTab extends StatelessWidget {
   const _TicketsTab({
     required this.movieTitle,
     required this.activeDate,
+    required this.canBookTickets,
     required this.onDateSelected,
     required this.sessions,
   });
 
   final String movieTitle;
   final _TicketDateFilter activeDate;
+  final bool canBookTickets;
   final ValueChanged<_TicketDateFilter> onDateSelected;
   final List<_CinemaSessions> sessions;
 
@@ -694,6 +716,21 @@ class _TicketsTab extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 16),
+        if (!canBookTickets) ...[
+          Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFF2A1B1B),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: const Color(0xFFE53935)),
+            ),
+            child: const Text(
+              'Бронирование станет доступно после официального релиза фильма.',
+              style: TextStyle(color: Color(0xFFFFC2C2)),
+            ),
+          ),
+        ],
         ...sessions.map((item) {
           return Container(
             margin: const EdgeInsets.only(bottom: 10),
@@ -711,24 +748,39 @@ class _TicketsTab extends StatelessWidget {
                   runSpacing: 8,
                   children: item.sessions.map((session) {
                     return OutlinedButton(
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => SeatSelectionScreen(
-                              sessionId: session.id,
-                              movieTitle: movieTitle,
-                              hallName: item.cinemaName,
-                              sessionTime: session.time,
-                            ),
-                          ),
-                        );
-                      },
+                      onPressed: canBookTickets
+                          ? () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => SeatSelectionScreen(
+                                    sessionId: session.id,
+                                    movieTitle: movieTitle,
+                                    hallName: item.cinemaName,
+                                    sessionTime: session.time,
+                                  ),
+                                ),
+                              );
+                            }
+                          : null,
                       style: OutlinedButton.styleFrom(
-                        side: const BorderSide(color: Color(0xFF4A4A4A)),
-                        foregroundColor: Colors.white,
+                        side: BorderSide(
+                          color: canBookTickets
+                              ? const Color(0xFF4A4A4A)
+                              : const Color(0xFF3A3A3A),
+                        ),
+                        foregroundColor: canBookTickets
+                            ? Colors.white
+                            : const Color(0xFF858585),
                       ),
-                      child: Text('${session.time} | ${session.price}тг'),
+                      child: Text(
+                        '${session.time} | ${session.price}тг',
+                        style: TextStyle(
+                          color: canBookTickets
+                              ? Colors.white
+                              : const Color(0xFF858585),
+                        ),
+                      ),
                     );
                   }).toList(),
                 ),

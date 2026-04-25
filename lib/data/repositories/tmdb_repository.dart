@@ -18,6 +18,10 @@ class TmdbRepository {
       );
     }
 
+    final todayDate = DateTime.now();
+    final todayDateString =
+        '${todayDate.year.toString().padLeft(4, '0')}-${todayDate.month.toString().padLeft(2, '0')}-${todayDate.day.toString().padLeft(2, '0')}';
+
     final genreMap = await _loadGenres();
     final discoverPage1Response = await _getJson(
       '/discover/movie',
@@ -27,16 +31,32 @@ class TmdbRepository {
       '/discover/movie',
       extraQuery: '&region=KZ&sort_by=popularity.desc&include_adult=false&page=2',
     );
+    final upcomingPage1Response = await _getJson(
+      '/discover/movie',
+      extraQuery:
+          '&include_adult=false&sort_by=popularity.desc&release_date.gte=$todayDateString&with_release_type=2|3|4|5&page=1',
+    );
+    final upcomingPage2Response = await _getJson(
+      '/discover/movie',
+      extraQuery:
+          '&include_adult=false&sort_by=popularity.desc&release_date.gte=$todayDateString&with_release_type=2|3|4|5&page=2',
+    );
     final trendingResponse = await _getJson('/trending/movie/week');
 
     final rawDiscoverPage1Movies = (discoverPage1Response['results'] as List<dynamic>? ?? [])
         .cast<Map<String, dynamic>>();
     final rawDiscoverPage2Movies = (discoverPage2Response['results'] as List<dynamic>? ?? [])
         .cast<Map<String, dynamic>>();
+    final rawUpcomingPage1Movies = (upcomingPage1Response['results'] as List<dynamic>? ?? [])
+        .cast<Map<String, dynamic>>();
+    final rawUpcomingPage2Movies = (upcomingPage2Response['results'] as List<dynamic>? ?? [])
+        .cast<Map<String, dynamic>>();
     final rawBanners = (trendingResponse['results'] as List<dynamic>? ?? [])
         .cast<Map<String, dynamic>>();
 
     final combinedMovies = <Map<String, dynamic>>[
+      ...rawUpcomingPage1Movies,
+      ...rawUpcomingPage2Movies,
       ...rawDiscoverPage1Movies,
       ...rawDiscoverPage2Movies,
     ];
@@ -50,7 +70,7 @@ class TmdbRepository {
     final movies = uniqueMoviesById.values
         .where((movie) => (movie['poster_path'] as String?)?.isNotEmpty == true)
         .where((movie) => (movie['release_date'] as String?)?.trim().isNotEmpty == true)
-        .take(40)
+        .take(120)
         .map((movie) => MovieItem.fromTmdb(movie, genreMap: genreMap))
         .toList(growable: false);
 
