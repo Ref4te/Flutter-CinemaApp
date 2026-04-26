@@ -68,16 +68,22 @@ class FirestoreSessionScheduleService {
     }
 
     final Set<String> movieIds = movieDocs.map((doc) => doc.id).toSet();
+    final List<QueryDocumentSnapshot<Map<String, dynamic>>> allSessions =
+        <QueryDocumentSnapshot<Map<String, dynamic>>>[];
 
-    final QuerySnapshot<Map<String, dynamic>> sessionsSnapshot =
-        await _firestore
-            .collection('sessions')
-            .where('movie_id', whereIn: movieIds.toList())
-            .get();
+    for (final chunk in _chunk(movieIds.toList(), 10)) {
+      final QuerySnapshot<Map<String, dynamic>> sessionsSnapshot =
+          await _firestore
+              .collection('sessions')
+              .where('movie_id', whereIn: chunk)
+              .get();
+      allSessions.addAll(sessionsSnapshot.docs);
+    }
 
-    final WriteBatch cleanupBatch = _firestore.batch();
+    final List<DocumentReference<Map<String, dynamic>>> toDelete =
+        <DocumentReference<Map<String, dynamic>>>[];
     for (final QueryDocumentSnapshot<Map<String, dynamic>> session
-        in sessionsSnapshot.docs) {
+        in allSessions) {
       final Timestamp? ts = session.data()['date'] as Timestamp?;
       if (ts == null) {
         continue;
@@ -87,12 +93,18 @@ class FirestoreSessionScheduleService {
       final bool outOfWindow =
           date.isBefore(today) || !date.isBefore(windowEndExclusive);
       if (outOfWindow) {
-        cleanupBatch.delete(session.reference);
+        toDelete.add(session.reference);
       }
     }
-    await cleanupBatch.commit();
+    await _commitDeletes(toDelete);
 
-    final WriteBatch upsertBatch = _firestore.batch();
+    final List<({
+      DocumentReference<Map<String, dynamic>> ref,
+      Map<String, dynamic> data,
+    })> upserts = <({
+      DocumentReference<Map<String, dynamic>> ref,
+      Map<String, dynamic> data,
+    })>[];
 
     for (int dayOffset = 0; dayOffset < 3; dayOffset++) {
       final DateTime targetDate = today.add(Duration(days: dayOffset));
@@ -119,25 +131,28 @@ class FirestoreSessionScheduleService {
                   time: time,
                 ));
 
-            upsertBatch.set(sessionRef, {
-              'movie_id': movie.id,
-              'movie_title': movieTitle,
-              'hall_id': hall.id,
-              'hall_name': hallName,
-              'age_rating': movieData['age_rating'] ?? '16+',
-              'date': Timestamp.fromDate(_mergeDateAndTime(targetDate, time)),
-              'time': time,
-              'ticket_prices': _defaultTicketPrices,
-              'booked_seats': const <String>[],
-              'updated_at': FieldValue.serverTimestamp(),
-              'created_at': FieldValue.serverTimestamp(),
-            }, SetOptions(merge: true));
+            upserts.add((
+              ref: sessionRef,
+              data: {
+                'movie_id': movie.id,
+                'movie_title': movieTitle,
+                'hall_id': hall.id,
+                'hall_name': hallName,
+                'age_rating': movieData['age_rating'] ?? '16+',
+                'date': Timestamp.fromDate(_mergeDateAndTime(targetDate, time)),
+                'time': time,
+                'ticket_prices': _defaultTicketPrices,
+                'booked_seats': const <String>[],
+                'updated_at': FieldValue.serverTimestamp(),
+                'created_at': FieldValue.serverTimestamp(),
+              },
+            ));
           }
         }
       }
     }
 
-    await upsertBatch.commit();
+    await _commitUpserts(upserts);
   }
 
   Future<List<QueryDocumentSnapshot<Map<String, dynamic>>>> _loadMoviesByIds(
@@ -170,6 +185,66 @@ class FirestoreSessionScheduleService {
   }
 
   DateTime _startOfDay(DateTime date) => DateTime(date.year, date.month, date.day);
+
+  List<List<String>> _chunk(List<String> source, int size) {
+    final List<List<String>> result = <List<String>>[];
+    for (int i = 0; i < source.length; i += size) {
+      final end = (i + size > source.length) ? source.length : i + size;
+      result.add(source.sublist(i, end));
+    }
+    return result;
+  }
+
+  Future<void> _commitDeletes(
+    List<DocumentReference<Map<String, dynamic>>> refs,
+  ) async {
+    if (refs.isEmpty) {
+      return;
+    }
+
+    WriteBatch batch = _firestore.batch();
+    int opCount = 0;
+
+    for (final ref in refs) {
+      batch.delete(ref);
+      opCount++;
+      if (opCount == 450) {
+        await batch.commit();
+        batch = _firestore.batch();
+        opCount = 0;
+      }
+    }
+
+    if (opCount > 0) {
+      await batch.commit();
+    }
+  }
+
+  Future<void> _commitUpserts(
+    List<({DocumentReference<Map<String, dynamic>> ref, Map<String, dynamic> data})>
+    upserts,
+  ) async {
+    if (upserts.isEmpty) {
+      return;
+    }
+
+    WriteBatch batch = _firestore.batch();
+    int opCount = 0;
+
+    for (final item in upserts) {
+      batch.set(item.ref, item.data, SetOptions(merge: true));
+      opCount++;
+      if (opCount == 450) {
+        await batch.commit();
+        batch = _firestore.batch();
+        opCount = 0;
+      }
+    }
+
+    if (opCount > 0) {
+      await batch.commit();
+    }
+  }
 
   String _buildSessionId({
     required String movieId,

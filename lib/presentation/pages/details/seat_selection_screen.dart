@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 import 'checkout_screen.dart';
@@ -21,13 +22,16 @@ class SeatSelectionScreen extends StatefulWidget {
 }
 
 class _SeatSelectionScreenState extends State<SeatSelectionScreen> {
-  static const int _rows = 10;
-  static const int _seatsPerRow = 10;
-  static const int _standardPrice = 2500;
-  static const int _vipPrice = 5000;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
+  int _rows = 10;
+  int _seatsPerRow = 10;
+  bool _hasVipConfig = false;
+  Set<String> _vipSeatNumbers = <String>{};
+  bool _isLoading = true;
 
   final Map<TicketSeat, TicketTariff> _selectedSeats = <TicketSeat, TicketTariff>{};
-  late final Set<TicketSeat> _occupiedSeats;
+  Set<TicketSeat> _occupiedSeats = <TicketSeat>{};
 
   TicketSeat? _focusedSeat;
   TicketTariff _activeTariff = TicketTariff.adult;
@@ -36,21 +40,64 @@ class _SeatSelectionScreenState extends State<SeatSelectionScreen> {
   @override
   void initState() {
     super.initState();
-    _occupiedSeats = {
-      const TicketSeat(row: 1, seat: 3),
-      const TicketSeat(row: 1, seat: 4),
-      const TicketSeat(row: 2, seat: 7),
-      const TicketSeat(row: 4, seat: 2),
-      const TicketSeat(row: 5, seat: 5),
-      const TicketSeat(row: 8, seat: 9),
-      const TicketSeat(row: 9, seat: 1),
-      const TicketSeat(row: 10, seat: 6),
-    };
+    _loadSessionData();
   }
 
-  bool _isVip(TicketSeat seat) => seat.row >= _rows - 1;
+  Future<void> _loadSessionData() async {
+    try {
+      final sessionSnapshot =
+          await _firestore.collection('sessions').doc(widget.sessionId).get();
+      if (!sessionSnapshot.exists) {
+        throw StateError('Сеанс не найден');
+      }
 
-  int _basePrice(TicketSeat seat) => _isVip(seat) ? _vipPrice : _standardPrice;
+      final sessionData = sessionSnapshot.data()!;
+      final List<dynamic> bookedDynamic =
+          sessionData['booked_seats'] as List<dynamic>? ?? <dynamic>[];
+
+      final hallId = sessionData['hall_id'] as String?;
+      if (hallId != null) {
+        final hallSnapshot = await _firestore.collection('halls').doc(hallId).get();
+        if (hallSnapshot.exists) {
+          final hallData = hallSnapshot.data()!;
+          _rows = (hallData['rows_count'] as num?)?.toInt() ?? _rows;
+          _seatsPerRow = (hallData['seats_per_row'] as num?)?.toInt() ?? _seatsPerRow;
+
+          final vipDynamic = hallData['vip_seats'] as List<dynamic>?;
+          if (vipDynamic != null && vipDynamic.isNotEmpty) {
+            _vipSeatNumbers = vipDynamic.map((seat) => seat.toString()).toSet();
+            _hasVipConfig = true;
+          }
+        }
+      }
+
+      _occupiedSeats = bookedDynamic
+          .map((value) => TicketSeat.fromSeatNumber(value.toString()))
+          .whereType<TicketSeat>()
+          .toSet();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Ошибка загрузки мест: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  bool _isVip(TicketSeat seat) {
+    if (_hasVipConfig) {
+      return _vipSeatNumbers.contains(seat.seatNumber);
+    }
+    return seat.row >= _rows - 1;
+  }
+
+  int _basePrice(TicketSeat seat) => _isVip(seat) ? 5000 : 2500;
 
   int _priceFor(TicketSeat seat, TicketTariff tariff) {
     final base = _basePrice(seat);
@@ -92,7 +139,8 @@ class _SeatSelectionScreenState extends State<SeatSelectionScreen> {
     setState(() {
       _selectedSeats.remove(seat);
       if (_selectedSeats.isEmpty) {
-        _bottomPanelMode = _focusedSeat == null ? _BottomPanelMode.hidden : _BottomPanelMode.seatInfo;
+        _bottomPanelMode =
+            _focusedSeat == null ? _BottomPanelMode.hidden : _BottomPanelMode.seatInfo;
       }
     });
   }
@@ -103,14 +151,16 @@ class _SeatSelectionScreenState extends State<SeatSelectionScreen> {
     }
     final sortedSeats = _selectedSeats.entries.toList()
       ..sort(
-        (a, b) =>
-            a.key.row != b.key.row ? a.key.row.compareTo(b.key.row) : a.key.seat.compareTo(b.key.seat),
+        (a, b) => a.key.row != b.key.row
+            ? a.key.row.compareTo(b.key.row)
+            : a.key.seat.compareTo(b.key.seat),
       );
 
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => CheckoutScreen(
+          sessionId: widget.sessionId,
           movieTitle: widget.movieTitle,
           hallName: widget.hallName,
           sessionTime: widget.sessionTime,
@@ -119,6 +169,7 @@ class _SeatSelectionScreenState extends State<SeatSelectionScreen> {
                 (entry) => CheckoutSeatLine(
                   row: entry.key.row,
                   seat: entry.key.seat,
+                  seatNumber: entry.key.seatNumber,
                   tariff: entry.value.label,
                   price: _priceFor(entry.key, entry.value),
                 ),
@@ -132,6 +183,12 @@ class _SeatSelectionScreenState extends State<SeatSelectionScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
     final bottomInset = MediaQuery.of(context).padding.bottom;
     final hasBottomPanel = _bottomPanelMode != _BottomPanelMode.hidden;
     final bottomOffset = hasBottomPanel ? 210 + bottomInset : 0.0;
@@ -187,7 +244,9 @@ class _SeatSelectionScreenState extends State<SeatSelectionScreen> {
                 decoration: const BoxDecoration(
                   color: Color(0xFF151515),
                   borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-                  boxShadow: [BoxShadow(color: Colors.black54, blurRadius: 14, offset: Offset(0, -5))],
+                  boxShadow: [
+                    BoxShadow(color: Colors.black54, blurRadius: 14, offset: Offset(0, -5)),
+                  ],
                 ),
                 child: SafeArea(
                   top: false,
@@ -217,11 +276,14 @@ class _SeatSelectionScreenState extends State<SeatSelectionScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Ряд ${seat.row}, Место ${seat.seat}',
+          'Ряд ${seat.row}, Место ${seat.seat} (${seat.seatNumber})',
           style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
         ),
         const SizedBox(height: 10),
-        const Text('Тариф', style: TextStyle(color: Color(0xFFB7B7B7), fontWeight: FontWeight.w600)),
+        const Text(
+          'Тариф',
+          style: TextStyle(color: Color(0xFFB7B7B7), fontWeight: FontWeight.w600),
+        ),
         const SizedBox(height: 8),
         Wrap(
           spacing: 8,
@@ -278,7 +340,7 @@ class _SeatSelectionScreenState extends State<SeatSelectionScreen> {
                 margin: const EdgeInsets.only(right: 8),
                 child: Chip(
                   backgroundColor: const Color(0xFF262626),
-                  label: Text('Р${entry.key.row}-М${entry.key.seat} (${entry.value.short})'),
+                  label: Text('${entry.key.seatNumber} (${entry.value.short})'),
                   deleteIcon: const Icon(Icons.close, size: 16),
                   onDeleted: () => _removeSeat(entry.key),
                 ),
@@ -417,6 +479,28 @@ class TicketSeat {
 
   final int row;
   final int seat;
+
+  String get seatNumber {
+    final rowLetter = String.fromCharCode(64 + row);
+    return '$rowLetter$seat';
+  }
+
+  static TicketSeat? fromSeatNumber(String value) {
+    if (value.isEmpty) {
+      return null;
+    }
+
+    final rowLetter = value[0].toUpperCase();
+    final seatPart = value.substring(1);
+    final row = rowLetter.codeUnitAt(0) - 64;
+    final seat = int.tryParse(seatPart);
+
+    if (row <= 0 || seat == null || seat <= 0) {
+      return null;
+    }
+
+    return TicketSeat(row: row, seat: seat);
+  }
 
   @override
   bool operator ==(Object other) {
