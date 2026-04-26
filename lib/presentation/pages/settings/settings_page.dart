@@ -1,37 +1,173 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/localization/app_strings.dart';
+import '../../../core/settings/app_settings.dart';
+
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});
 
+  void _showLanguageDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return ValueListenableBuilder<String>(
+          valueListenable: AppSettings.language,
+          builder: (context, language, child) {
+            return AlertDialog(
+              title: Text(AppStrings.t('choose_language')),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _LanguageItem(
+                    title: 'Русский',
+                    selected: language == 'Русский',
+                    onTap: () {
+                      AppSettings.language.value = 'Русский';
+                      Navigator.pop(context);
+                    },
+                  ),
+                  _LanguageItem(
+                    title: 'Қазақша',
+                    selected: language == 'Қазақша',
+                    onTap: () {
+                      AppSettings.language.value = 'Қазақша';
+                      Navigator.pop(context);
+                    },
+                  ),
+                  _LanguageItem(
+                    title: 'English',
+                    selected: language == 'English',
+                    onTap: () {
+                      AppSettings.language.value = 'English';
+                      Navigator.pop(context);
+                    },
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _showAboutDialog(BuildContext context) {
+    showAboutDialog(
+      context: context,
+      applicationName: 'Cinema Booking',
+      applicationVersion: '1.0.0',
+      children: const [
+        SizedBox(height: 12),
+        Text(
+          'Авторы проекта:\n'
+              'Манат Ақжол\n'
+              'Қарабаев Бақдәулет\n'
+              'Болатов Қазыбек\n'
+              'Ералиев Елнур',
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Настройки')),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: const [
-          _SettingsTile(
-            icon: Icons.language,
-            title: 'Язык интерфейса',
-            subtitle: 'Русский',
+    return ValueListenableBuilder<String>(
+      valueListenable: AppSettings.language,
+      builder: (context, language, child) {
+        return Scaffold(
+          appBar: AppBar(
+            title: Text(AppStrings.t('settings')),
           ),
-          _SettingsTile(
-            icon: Icons.notifications_none,
-            title: 'Уведомления',
-            subtitle: 'Включены',
+          body: ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              _SettingsTile(
+                icon: Icons.language,
+                title: AppStrings.t('language'),
+                subtitle: language,
+                onTap: () => _showLanguageDialog(context),
+              ),
+              ValueListenableBuilder<bool>(
+                valueListenable: AppSettings.notificationsEnabled,
+                builder: (context, enabled, child) {
+                  return Card(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    child: SwitchListTile(
+                      secondary: const Icon(
+                        Icons.notifications_none,
+                        color: Color(0xFFE53935),
+                      ),
+                      title: Text(AppStrings.t('notifications')),
+                      subtitle: Text(
+                        enabled
+                            ? AppStrings.t('enabled')
+                            : AppStrings.t('disabled'),
+                      ),
+                      value: enabled,
+                      onChanged: (value) {
+                        AppSettings.notificationsEnabled.value = value;
+                      },
+                    ),
+                  );
+                },
+              ),
+              ValueListenableBuilder<bool>(
+                valueListenable: AppSettings.isDarkTheme,
+                builder: (context, isDark, child) {
+                  return Card(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    child: SwitchListTile(
+                      secondary: Icon(
+                        isDark
+                            ? Icons.dark_mode_outlined
+                            : Icons.light_mode_outlined,
+                        color: const Color(0xFFE53935),
+                      ),
+                      title: Text(AppStrings.t('theme')),
+                      subtitle: Text(
+                        isDark ? AppStrings.t('dark') : AppStrings.t('light'),
+                      ),
+                      value: isDark,
+                      onChanged: (value) {
+                        AppSettings.isDarkTheme.value = value;
+                      },
+                    ),
+                  );
+                },
+              ),
+              _SettingsTile(
+                icon: Icons.info_outline,
+                title: AppStrings.t('about'),
+                subtitle: AppStrings.t('authors'),
+                onTap: () => _showAboutDialog(context),
+              ),
+            ],
           ),
-          _SettingsTile(
-            icon: Icons.dark_mode_outlined,
-            title: 'Тема',
-            subtitle: 'Тёмная',
-          ),
-          _SettingsTile(
-            icon: Icons.info_outline,
-            title: 'О приложении',
-            subtitle: 'Тут позже будет информация и API настройки',
-          ),
-        ],
-      ),
+        );
+      },
+    );
+  }
+}
+
+class _LanguageItem extends StatelessWidget {
+  const _LanguageItem({
+    required this.title,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String title;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      title: Text(title),
+      trailing: selected
+          ? const Icon(Icons.check, color: Color(0xFFE53935))
+          : null,
+      onTap: onTap,
     );
   }
 }
@@ -41,26 +177,28 @@ class _SettingsTile extends StatelessWidget {
     required this.icon,
     required this.title,
     required this.subtitle,
+    required this.onTap,
   });
 
   final IconData icon;
   final String title;
   final String subtitle;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     return Card(
-      color: const Color(0xFF1D1D1D),
       margin: const EdgeInsets.only(bottom: 12),
       child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 8,
+        ),
         leading: Icon(icon, color: const Color(0xFFE53935)),
         title: Text(title),
-        subtitle: Text(
-          subtitle,
-          style: const TextStyle(color: Color(0xFF9A9A9A)),
-        ),
+        subtitle: Text(subtitle),
         trailing: const Icon(Icons.chevron_right),
+        onTap: onTap,
       ),
     );
   }
