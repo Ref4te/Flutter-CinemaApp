@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:youtube_player_flutter/youtube_player_flutter.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../../../data/services/firestore_session_schedule_service.dart';
 import '../../../domain/entities/movie.dart';
 import '../../../domain/entities/movie_details.dart';
 import '../../../data/repositories/tmdb_repository.dart';
@@ -19,9 +21,11 @@ class MovieDetailScreen extends StatefulWidget {
 
 class _MovieDetailScreenState extends State<MovieDetailScreen> {
   final _tmdbRepository = TmdbRepository();
+  final _scheduleService = FirestoreSessionScheduleService();
 
   YoutubePlayerController? _youtubeController;
   late Future<MovieFullDetailsData> _detailsFuture;
+  late Future<Map<_TicketDateFilter, List<_CinemaSessions>>> _sessionsFuture;
 
   _TicketDateFilter _activeDate = _TicketDateFilter.today;
   bool _isFavorite = false;
@@ -30,6 +34,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
   void initState() {
     super.initState();
     _detailsFuture = _loadMovieDetails();
+    _sessionsFuture = _loadSessionsForTickets();
     _loadFavoriteStatus();
   }
 
@@ -61,6 +66,94 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
         enableCaption: false,
       ),
     );
+  }
+
+  Future<Map<_TicketDateFilter, List<_CinemaSessions>>>
+  _loadSessionsForTickets() async {
+    final DateTime today = DateTime.now();
+    final DateTime dayStart = DateTime(today.year, today.month, today.day);
+    final DateTime dayEnd = dayStart.add(const Duration(days: 3));
+
+    await _scheduleService.rollNowPlayingScheduleWindow();
+
+    final sessionsSnapshot = await FirebaseFirestore.instance
+        .collection('sessions')
+        .where('movie_title', isEqualTo: widget.movie.title)
+        .where('date', isGreaterThanOrEqualTo: Timestamp.fromDate(dayStart))
+        .where('date', isLessThan: Timestamp.fromDate(dayEnd))
+        .get();
+
+    final Map<_TicketDateFilter, Map<String, List<_Session>>> groupedByDay =
+        <_TicketDateFilter, Map<String, List<_Session>>>{};
+
+    for (final sessionDoc in sessionsSnapshot.docs) {
+      final data = sessionDoc.data();
+      final timestamp = data['date'] as Timestamp?;
+      if (timestamp == null) {
+        continue;
+      }
+
+      final date = timestamp.toDate();
+      final dayOffset = date.difference(dayStart).inDays;
+      final dateFilter = _toDateFilter(dayOffset);
+      if (dateFilter == null) {
+        continue;
+      }
+
+      final hallName = (data['hall_name'] as String?)?.trim().isNotEmpty == true
+          ? data['hall_name'] as String
+          : 'Зал';
+      final time = (data['time'] as String?)?.trim().isNotEmpty == true
+          ? data['time'] as String
+          : _formatSessionTime(date);
+
+      final prices = data['ticket_prices'] as Map<String, dynamic>?;
+      final price = (prices?['adult'] as num?)?.toInt() ?? 2500;
+
+      final session = _Session(id: sessionDoc.id, time: time, price: price);
+
+      final groupedByHall =
+          groupedByDay.putIfAbsent(dateFilter, () => <String, List<_Session>>{});
+      groupedByHall.putIfAbsent(hallName, () => <_Session>[]).add(session);
+    }
+
+    final Map<_TicketDateFilter, List<_CinemaSessions>> result =
+        <_TicketDateFilter, List<_CinemaSessions>>{
+          _TicketDateFilter.today: <_CinemaSessions>[],
+          _TicketDateFilter.tomorrow: <_CinemaSessions>[],
+          _TicketDateFilter.dayAfterTomorrow: <_CinemaSessions>[],
+        };
+
+    for (final entry in groupedByDay.entries) {
+      final List<_CinemaSessions> groupedSessions = entry.value.entries
+          .map(
+            (hallEntry) => _CinemaSessions(
+              cinemaName: hallEntry.key,
+              sessions: hallEntry.value
+                ..sort((a, b) => a.time.compareTo(b.time)),
+            ),
+          )
+          .toList();
+
+      result[entry.key] = groupedSessions;
+    }
+
+    return result;
+  }
+
+  _TicketDateFilter? _toDateFilter(int dayOffset) {
+    return switch (dayOffset) {
+      0 => _TicketDateFilter.today,
+      1 => _TicketDateFilter.tomorrow,
+      2 => _TicketDateFilter.dayAfterTomorrow,
+      _ => null,
+    };
+  }
+
+  String _formatSessionTime(DateTime date) {
+    final hour = date.hour.toString().padLeft(2, '0');
+    final minute = date.minute.toString().padLeft(2, '0');
+    return '$hour:$minute';
   }
 
   @override
@@ -216,14 +309,26 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                 },
                 body: TabBarView(
                   children: [
-                    _TicketsTab(
-                      movieTitle: widget.movie.title,
-                      activeDate: _activeDate,
-                      canBookTickets: canBookTickets,
-                      onDateSelected: (value) {
-                        setState(() => _activeDate = value);
+                    FutureBuilder<Map<_TicketDateFilter, List<_CinemaSessions>>>(
+                      future: _sessionsFuture,
+                      builder: (context, ticketSnapshot) {
+                        if (ticketSnapshot.connectionState == ConnectionState.waiting) {
+                          return const Center(child: CircularProgressIndicator());
+                        }
+
+                        final sessionsByDate = ticketSnapshot.data ??
+                            <_TicketDateFilter, List<_CinemaSessions>>{};
+
+                        return _TicketsTab(
+                          movieTitle: widget.movie.title,
+                          activeDate: _activeDate,
+                          canBookTickets: canBookTickets,
+                          onDateSelected: (value) {
+                            setState(() => _activeDate = value);
+                          },
+                          sessions: sessionsByDate[_activeDate] ?? const <_CinemaSessions>[],
+                        );
                       },
-                      sessions: _sessionsByDate[_activeDate]!,
                     ),
                     _AboutMovieTab(movie: widget.movie, details: details),
                     _ReviewsTab(details: details),
@@ -731,6 +836,16 @@ class _TicketsTab extends StatelessWidget {
             ),
           ),
         ],
+        if (sessions.isEmpty)
+          const Padding(
+            padding: EdgeInsets.only(top: 18),
+            child: Center(
+              child: Text(
+                'На выбранную дату сеансов пока нет.',
+                style: TextStyle(color: Color(0xFF9A9A9A)),
+              ),
+            ),
+          ),
         ...sessions.map((item) {
           return Container(
             margin: const EdgeInsets.only(bottom: 10),
@@ -794,44 +909,6 @@ class _TicketsTab extends StatelessWidget {
 }
 
 enum _TicketDateFilter { today, tomorrow, dayAfterTomorrow }
-
-const Map<_TicketDateFilter, List<_CinemaSessions>> _sessionsByDate = {
-  _TicketDateFilter.today: [
-    _CinemaSessions(
-      cinemaName: 'Kinopark 8 IMAX Saryarka',
-      sessions: [
-        _Session(id: 'KP8-1400', time: '14:00', price: 2500),
-        _Session(id: 'KP8-1830', time: '18:30', price: 3500),
-        _Session(id: 'KP8-2110', time: '21:10', price: 3900),
-      ],
-    ),
-    _CinemaSessions(
-      cinemaName: 'Chaplin MEGA Silk Way',
-      sessions: [
-        _Session(id: 'CHM-1320', time: '13:20', price: 2800),
-        _Session(id: 'CHM-1650', time: '16:50', price: 3200),
-      ],
-    ),
-  ],
-  _TicketDateFilter.tomorrow: [
-    _CinemaSessions(
-      cinemaName: 'Arman 3D Asia Park',
-      sessions: [
-        _Session(id: 'ARM-1200', time: '12:00', price: 2300),
-        _Session(id: 'ARM-1740', time: '17:40', price: 3000),
-      ],
-    ),
-  ],
-  _TicketDateFilter.dayAfterTomorrow: [
-    _CinemaSessions(
-      cinemaName: 'Kinopark 6 KeruenCity',
-      sessions: [
-        _Session(id: 'KPK-1500', time: '15:00', price: 2600),
-        _Session(id: 'KPK-1945', time: '19:45', price: 3600),
-      ],
-    ),
-  ],
-};
 
 class _CinemaSessions {
   final String cinemaName;
