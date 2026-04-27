@@ -2,10 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:youtube_player_flutter/youtube_player_flutter.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 import '../../../domain/entities/movie.dart';
 import '../../../domain/entities/movie_details.dart';
+import '../../../domain/entities/session.dart';
 import '../../../data/repositories/tmdb_repository.dart';
+import '../../../data/repositories/booking_repository.dart';
 import 'seat_selection_screen.dart';
 
 class MovieDetailScreen extends StatefulWidget {
@@ -19,6 +22,7 @@ class MovieDetailScreen extends StatefulWidget {
 
 class _MovieDetailScreenState extends State<MovieDetailScreen> {
   final _tmdbRepository = TmdbRepository();
+  final _bookingRepository = BookingRepository();
 
   YoutubePlayerController? _youtubeController;
   late Future<MovieFullDetailsData> _detailsFuture;
@@ -127,6 +131,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
     required Widget? trailerPlayer,
   }) {
     final canBookTickets = _isReleasedStatus(details.status);
+    final user = FirebaseAuth.instance.currentUser;
 
     return DefaultTabController(
       length: 3,
@@ -160,6 +165,25 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                         ),
                       ),
                       actions: [
+                        if (user != null && user.email == 'manat11@mail.ru') ...[
+                          IconButton(
+                            icon: const Icon(Icons.delete_forever, color: Colors.redAccent),
+                            tooltip: 'Удалить все данные БД',
+                            onPressed: () => _showDeleteConfirmDialog(),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.auto_fix_high),
+                            tooltip: 'Сгенерировать расписание (One-Click)',
+                            onPressed: () async {
+                              await _bookingRepository.generateScheduleForAdmin();
+                              if (mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('Расписание для 25 фильмов сгенерировано!'))
+                                );
+                              }
+                            },
+                          ),
+                        ],
                         IconButton(
                           onPressed: _toggleFavorite,
                           icon: Icon(
@@ -217,13 +241,13 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                 body: TabBarView(
                   children: [
                     _TicketsTab(
+                      movieId: widget.movie.id,
                       movieTitle: widget.movie.title,
                       activeDate: _activeDate,
                       canBookTickets: canBookTickets,
                       onDateSelected: (value) {
                         setState(() => _activeDate = value);
                       },
-                      sessions: _sessionsByDate[_activeDate]!,
                     ),
                     _AboutMovieTab(movie: widget.movie, details: details),
                     _ReviewsTab(details: details),
@@ -233,6 +257,34 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  void _showDeleteConfirmDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Удаление всех данных'),
+        content: const Text('Вы уверены, что хотите удалить все сеансы и купленные билеты из базы данных? Это действие необратимо.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Отмена'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              await _bookingRepository.clearAllData();
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Все данные успешно удалены из БД'))
+                );
+              }
+            },
+            child: const Text('Удалить', style: TextStyle(color: Colors.redAccent)),
+          ),
+        ],
       ),
     );
   }
@@ -300,7 +352,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                 ),
                 child: Text(
                   _buildAgeRatingLabel(details.ageRating),
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
                 ),
               ),
               const SizedBox(width: 12),
@@ -448,7 +500,7 @@ class _AboutMovieTab extends StatelessWidget {
               ? Center(
                   child: Text(
                     emptyCastMessage,
-                    style: TextStyle(color: Color(0xFF9A9A9A)),
+                    style: const TextStyle(color: Color(0xFF9A9A9A)),
                   ),
                 )
               : ListView.separated(
@@ -648,18 +700,18 @@ class _ReviewCard extends StatelessWidget {
 
 class _TicketsTab extends StatelessWidget {
   const _TicketsTab({
+    required this.movieId,
     required this.movieTitle,
     required this.activeDate,
     required this.canBookTickets,
     required this.onDateSelected,
-    required this.sessions,
   });
 
+  final int movieId;
   final String movieTitle;
   final _TicketDateFilter activeDate;
   final bool canBookTickets;
   final ValueChanged<_TicketDateFilter> onDateSelected;
-  final List<_CinemaSessions> sessions;
 
   @override
   Widget build(BuildContext context) {
@@ -669,184 +721,150 @@ class _TicketsTab extends StatelessWidget {
       (_TicketDateFilter.dayAfterTomorrow, 'Послезавтра'),
     ];
 
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 22),
-      children: [
-        Container(
-          padding: const EdgeInsets.all(4),
-          decoration: BoxDecoration(
-            color: const Color(0xFF1A1A1A),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: const Color(0xFF353535)),
-          ),
-          child: Row(
-            children: items.map((item) {
-              final (filter, title) = item;
-              final isSelected = activeDate == filter;
+    return StreamBuilder<List<MovieSession>>(
+      stream: BookingRepository().getSessions(movieId),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        
+        final sessions = snapshot.data ?? [];
+        final filteredSessions = _filterSessionsByDate(sessions, activeDate);
 
-              return Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 2),
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(9),
-                    onTap: () => onDateSelected(filter),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 220),
-                      curve: Curves.easeInOut,
-                      height: 40,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: isSelected
-                            ? const Color(0xFFE53935)
-                            : const Color(0xFF232323),
+        return ListView(
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 22),
+          children: [
+            Container(
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1A1A1A),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFF353535)),
+              ),
+              child: Row(
+                children: items.map((item) {
+                  final (filter, title) = item;
+                  final isSelected = activeDate == filter;
+
+                  return Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 2),
+                      child: InkWell(
                         borderRadius: BorderRadius.circular(9),
-                      ),
-                      child: Text(
-                        title,
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                        onTap: () => onDateSelected(filter),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 220),
+                          curve: Curves.easeInOut,
+                          height: 40,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: isSelected
+                                ? const Color(0xFFE53935)
+                                : const Color(0xFF232323),
+                            borderRadius: BorderRadius.circular(9),
+                          ),
+                          child: Text(
+                            title,
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                            ),
+                          ),
                         ),
                       ),
                     ),
-                  ),
+                  );
+                }).toList(),
+              ),
+            ),
+            const SizedBox(height: 16),
+            if (filteredSessions.isEmpty)
+              const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(20.0),
+                  child: Text('Нет доступных сеансов на эту дату', style: TextStyle(color: Colors.grey)),
+                ),
+              ),
+            ..._groupSessionsByCinema(filteredSessions).entries.map((entry) {
+              return Container(
+                margin: const EdgeInsets.only(bottom: 10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1A1A1A),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFF2E2E2E)),
+                ),
+                child: ExpansionTile(
+                  initiallyExpanded: true,
+                  title: Text(entry.key),
+                  childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                  children: [
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: entry.value.map((session) {
+                        final timeStr = "${session.startTime.hour.toString().padLeft(2, '0')}:${session.startTime.minute.toString().padLeft(2, '0')}";
+                        return OutlinedButton(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => SeatSelectionScreen(
+                                  sessionId: session.id,
+                                  movieTitle: movieTitle,
+                                  hallName: 'Зал ${session.hallId}',
+                                  sessionTime: timeStr,
+                                ),
+                              ),
+                            );
+                          },
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(color: Color(0xFF4A4A4A)),
+                            foregroundColor: Colors.white,
+                          ),
+                          child: Text(timeStr),
+                        );
+                      }).toList(),
+                    ),
+                  ],
                 ),
               );
-            }).toList(),
-          ),
-        ),
-        const SizedBox(height: 16),
-        if (!canBookTickets) ...[
-          Container(
-            margin: const EdgeInsets.only(bottom: 12),
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: const Color(0xFF2A1B1B),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: const Color(0xFFE53935)),
-            ),
-            child: const Text(
-              'Бронирование станет доступно после официального релиза фильма.',
-              style: TextStyle(color: Color(0xFFFFC2C2)),
-            ),
-          ),
-        ],
-        ...sessions.map((item) {
-          return Container(
-            margin: const EdgeInsets.only(bottom: 10),
-            decoration: BoxDecoration(
-              color: const Color(0xFF1A1A1A),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: const Color(0xFF2E2E2E)),
-            ),
-            child: ExpansionTile(
-              title: Text(item.cinemaName),
-              childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-              children: [
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: item.sessions.map((session) {
-                    return OutlinedButton(
-                      onPressed: canBookTickets
-                          ? () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => SeatSelectionScreen(
-                                    sessionId: session.id,
-                                    movieTitle: movieTitle,
-                                    hallName: item.cinemaName,
-                                    sessionTime: session.time,
-                                  ),
-                                ),
-                              );
-                            }
-                          : null,
-                      style: OutlinedButton.styleFrom(
-                        side: BorderSide(
-                          color: canBookTickets
-                              ? const Color(0xFF4A4A4A)
-                              : const Color(0xFF3A3A3A),
-                        ),
-                        foregroundColor: canBookTickets
-                            ? Colors.white
-                            : const Color(0xFF858585),
-                      ),
-                      child: Text(
-                        '${session.time} | ${session.price}тг',
-                        style: TextStyle(
-                          color: canBookTickets
-                              ? Colors.white
-                              : const Color(0xFF858585),
-                        ),
-                      ),
-                    );
-                  }).toList(),
-                ),
-              ],
-            ),
-          );
-        }),
-      ],
+            }),
+          ],
+        );
+      }
     );
+  }
+
+  List<MovieSession> _filterSessionsByDate(List<MovieSession> sessions, _TicketDateFilter filter) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    
+    final targetDate = switch (filter) {
+      _TicketDateFilter.today => today,
+      _TicketDateFilter.tomorrow => today.add(const Duration(days: 1)),
+      _TicketDateFilter.dayAfterTomorrow => today.add(const Duration(days: 2)),
+    };
+
+    return sessions.where((s) {
+      final sDate = DateTime(s.startTime.year, s.startTime.month, s.startTime.day);
+      bool isCorrectDate = sDate.isAtSameMomentAs(targetDate);
+      if (isCorrectDate && filter == _TicketDateFilter.today) {
+        return s.startTime.isAfter(now);
+      }
+      return isCorrectDate;
+    }).toList()..sort((a, b) => a.startTime.compareTo(b.startTime));
+  }
+
+  Map<String, List<MovieSession>> _groupSessionsByCinema(List<MovieSession> sessions) {
+    Map<String, List<MovieSession>> grouped = {};
+    for (var s in sessions) {
+      grouped.putIfAbsent(s.cinemaName, () => []).add(s);
+    }
+    return grouped;
   }
 }
 
 enum _TicketDateFilter { today, tomorrow, dayAfterTomorrow }
-
-const Map<_TicketDateFilter, List<_CinemaSessions>> _sessionsByDate = {
-  _TicketDateFilter.today: [
-    _CinemaSessions(
-      cinemaName: 'Kinopark 8 IMAX Saryarka',
-      sessions: [
-        _Session(id: 'KP8-1400', time: '14:00', price: 2500),
-        _Session(id: 'KP8-1830', time: '18:30', price: 3500),
-        _Session(id: 'KP8-2110', time: '21:10', price: 3900),
-      ],
-    ),
-    _CinemaSessions(
-      cinemaName: 'Chaplin MEGA Silk Way',
-      sessions: [
-        _Session(id: 'CHM-1320', time: '13:20', price: 2800),
-        _Session(id: 'CHM-1650', time: '16:50', price: 3200),
-      ],
-    ),
-  ],
-  _TicketDateFilter.tomorrow: [
-    _CinemaSessions(
-      cinemaName: 'Arman 3D Asia Park',
-      sessions: [
-        _Session(id: 'ARM-1200', time: '12:00', price: 2300),
-        _Session(id: 'ARM-1740', time: '17:40', price: 3000),
-      ],
-    ),
-  ],
-  _TicketDateFilter.dayAfterTomorrow: [
-    _CinemaSessions(
-      cinemaName: 'Kinopark 6 KeruenCity',
-      sessions: [
-        _Session(id: 'KPK-1500', time: '15:00', price: 2600),
-        _Session(id: 'KPK-1945', time: '19:45', price: 3600),
-      ],
-    ),
-  ],
-};
-
-class _CinemaSessions {
-  final String cinemaName;
-  final List<_Session> sessions;
-
-  const _CinemaSessions({required this.cinemaName, required this.sessions});
-}
-
-class _Session {
-  final String id;
-  final String time;
-  final int price;
-
-  const _Session({required this.id, required this.time, required this.price});
-}
 
 String _buildAgeRatingLabel(String? rawRating) {
   final rating = rawRating?.trim();

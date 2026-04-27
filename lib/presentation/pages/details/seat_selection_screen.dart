@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-
-import 'checkout_screen.dart';
+import '../../../domain/entities/session.dart';
+import '../../../data/repositories/booking_repository.dart';
 
 class SeatSelectionScreen extends StatefulWidget {
   const SeatSelectionScreen({
@@ -21,113 +21,81 @@ class SeatSelectionScreen extends StatefulWidget {
 }
 
 class _SeatSelectionScreenState extends State<SeatSelectionScreen> {
-  static const int _rows = 10;
-  static const int _seatsPerRow = 10;
-  static const int _standardPrice = 2500;
-  static const int _vipPrice = 5000;
-
-  final Map<TicketSeat, TicketTariff> _selectedSeats = <TicketSeat, TicketTariff>{};
-  late final Set<TicketSeat> _occupiedSeats;
-
-  TicketSeat? _focusedSeat;
-  TicketTariff _activeTariff = TicketTariff.adult;
+  final BookingRepository _bookingRepository = BookingRepository();
+  
+  // key: seatId, value: tariff
+  final Map<String, String> _selectedSeats = {};
+  String? _focusedSeatId;
+  String _activeTariff = 'Взрослый';
   _BottomPanelMode _bottomPanelMode = _BottomPanelMode.hidden;
 
-  @override
-  void initState() {
-    super.initState();
-    _occupiedSeats = {
-      const TicketSeat(row: 1, seat: 3),
-      const TicketSeat(row: 1, seat: 4),
-      const TicketSeat(row: 2, seat: 7),
-      const TicketSeat(row: 4, seat: 2),
-      const TicketSeat(row: 5, seat: 5),
-      const TicketSeat(row: 8, seat: 9),
-      const TicketSeat(row: 9, seat: 1),
-      const TicketSeat(row: 10, seat: 6),
-    };
-  }
-
-  bool _isVip(TicketSeat seat) => seat.row >= _rows - 1;
-
-  int _basePrice(TicketSeat seat) => _isVip(seat) ? _vipPrice : _standardPrice;
-
-  int _priceFor(TicketSeat seat, TicketTariff tariff) {
-    final base = _basePrice(seat);
-    return switch (tariff) {
-      TicketTariff.adult => base,
-      TicketTariff.child => (base * 0.7).round(),
-      TicketTariff.student => (base * 0.85).round(),
-    };
-  }
-
-  int get _totalPrice => _selectedSeats.entries.fold<int>(
-        0,
-        (sum, item) => sum + _priceFor(item.key, item.value),
-      );
-
-  void _focusSeat(TicketSeat seat) {
-    if (_occupiedSeats.contains(seat)) {
-      return;
-    }
+  void _focusSeat(Seat seat) {
+    if (!seat.isAvailable) return;
+    
     setState(() {
-      _focusedSeat = seat;
-      _activeTariff = _selectedSeats[seat] ?? TicketTariff.adult;
+      _focusedSeatId = seat.id;
+      _activeTariff = _selectedSeats[seat.id] ?? 'Взрослый';
       _bottomPanelMode = _BottomPanelMode.seatInfo;
     });
   }
 
-  void _addFocusedSeat() {
-    final focused = _focusedSeat;
-    if (focused == null) {
-      return;
-    }
+  void _addFocusedSeat(Seat seat) {
     setState(() {
-      _selectedSeats[focused] = _activeTariff;
+      _selectedSeats[seat.id] = _activeTariff;
       _bottomPanelMode = _BottomPanelMode.cart;
     });
   }
 
-  void _removeSeat(TicketSeat seat) {
+  void _removeSeat(String seatId) {
     setState(() {
-      _selectedSeats.remove(seat);
+      _selectedSeats.remove(seatId);
       if (_selectedSeats.isEmpty) {
-        _bottomPanelMode = _focusedSeat == null ? _BottomPanelMode.hidden : _BottomPanelMode.seatInfo;
+        _bottomPanelMode = _focusedSeatId == null ? _BottomPanelMode.hidden : _BottomPanelMode.seatInfo;
       }
     });
   }
 
-  void _goToCheckout() {
-    if (_selectedSeats.isEmpty) {
-      return;
+  int _calculatePrice(Seat seat, String tariff) {
+    if (seat.isVip) return 5000;
+    switch (tariff) {
+      case 'Детский': return 1200;
+      case 'Студенческий': return 1800;
+      case 'Взрослый': return 2500;
+      default: return 2500;
     }
-    final sortedSeats = _selectedSeats.entries.toList()
-      ..sort(
-        (a, b) =>
-            a.key.row != b.key.row ? a.key.row.compareTo(b.key.row) : a.key.seat.compareTo(b.key.seat),
-      );
+  }
 
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => CheckoutScreen(
-          movieTitle: widget.movieTitle,
-          hallName: widget.hallName,
-          sessionTime: widget.sessionTime,
-          seats: sortedSeats
-              .map(
-                (entry) => CheckoutSeatLine(
-                  row: entry.key.row,
-                  seat: entry.key.seat,
-                  tariff: entry.value.label,
-                  price: _priceFor(entry.key, entry.value),
-                ),
-              )
-              .toList(),
-          totalPrice: _totalPrice,
-        ),
-      ),
+  int _getTotalPrice(List<Seat> allSeats) {
+    int total = 0;
+    _selectedSeats.forEach((seatId, tariff) {
+      final seat = allSeats.firstWhere((s) => s.id == seatId);
+      total += _calculatePrice(seat, tariff);
+    });
+    return total;
+  }
+
+  Future<void> _handleBooking() async {
+    if (_selectedSeats.isEmpty) return;
+
+    setState(() => _bottomPanelMode = _BottomPanelMode.hidden);
+    
+    final success = await _bookingRepository.bookSeats(
+      widget.sessionId,
+      _selectedSeats,
     );
+
+    if (mounted) {
+      if (success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Бронирование успешно завершено!')),
+        );
+        Navigator.pop(context);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Ошибка бронирования. Возможно, места уже заняты.')),
+        );
+      }
+    }
   }
 
   @override
@@ -136,88 +104,104 @@ class _SeatSelectionScreenState extends State<SeatSelectionScreen> {
     final hasBottomPanel = _bottomPanelMode != _BottomPanelMode.hidden;
     final bottomOffset = hasBottomPanel ? 210 + bottomInset : 0.0;
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Выбор мест'), centerTitle: true),
-      body: Stack(
-        children: [
-          Padding(
-            padding: EdgeInsets.fromLTRB(8, 12, 8, bottomOffset),
-            child: InteractiveViewer(
-              minScale: 0.8,
-              maxScale: 2.8,
-              boundaryMargin: const EdgeInsets.all(100),
-              child: Center(
-                child: SizedBox(
-                  width: 400,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const _ScreenArc(),
-                      const SizedBox(height: 28),
-                      ...List.generate(_rows, (rowIndex) {
-                        final row = rowIndex + 1;
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 10),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: List.generate(_seatsPerRow, (seatIndex) {
-                              final seat = TicketSeat(row: row, seat: seatIndex + 1);
-                              return _SeatWidget(
-                                seat: seat,
-                                isOccupied: _occupiedSeats.contains(seat),
-                                isSelected: _selectedSeats.containsKey(seat),
-                                isVip: _isVip(seat),
-                                onTap: () => _focusSeat(seat),
-                              );
-                            }),
-                          ),
-                        );
-                      }),
-                    ],
+    return StreamBuilder<MovieSession>(
+      stream: _bookingRepository.getSessionStream(widget.sessionId),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(body: Center(child: CircularProgressIndicator()));
+        }
+        if (!snapshot.hasData) {
+          return const Scaffold(body: Center(child: Text('Сеанс не найден')));
+        }
+
+        final session = snapshot.data!;
+        final focusedSeat = _focusedSeatId != null 
+            ? session.seats.firstWhere((s) => s.id == _focusedSeatId, orElse: () => session.seats.first) 
+            : null;
+
+        return Scaffold(
+          appBar: AppBar(title: const Text('Выбор мест'), centerTitle: true),
+          body: Stack(
+            children: [
+              Padding(
+                padding: EdgeInsets.fromLTRB(8, 12, 8, bottomOffset),
+                child: InteractiveViewer(
+                  minScale: 0.5,
+                  maxScale: 2.0,
+                  child: Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const _ScreenArc(),
+                        const SizedBox(height: 28),
+                        _buildSeatGrid(session.seats),
+                      ],
+                    ),
                   ),
                 ),
               ),
-            ),
+              if (hasBottomPanel)
+                Align(
+                  alignment: Alignment.bottomCenter,
+                  child: Container(
+                    padding: EdgeInsets.fromLTRB(14, 10, 14, 10 + bottomInset),
+                    decoration: const BoxDecoration(
+                      color: Color(0xFF151515),
+                      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                      boxShadow: [BoxShadow(color: Colors.black54, blurRadius: 14, offset: Offset(0, -5))],
+                    ),
+                    child: SafeArea(
+                      top: false,
+                      child: AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 200),
+                        child: _bottomPanelMode == _BottomPanelMode.seatInfo && focusedSeat != null
+                            ? _buildSeatInfoPanel(focusedSeat)
+                            : _buildCartPanel(session),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
           ),
-          if (hasBottomPanel)
-            Align(
-              alignment: Alignment.bottomCenter,
-              child: Container(
-                padding: EdgeInsets.fromLTRB(14, 10, 14, 10 + bottomInset),
-                decoration: const BoxDecoration(
-                  color: Color(0xFF151515),
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-                  boxShadow: [BoxShadow(color: Colors.black54, blurRadius: 14, offset: Offset(0, -5))],
-                ),
-                child: SafeArea(
-                  top: false,
-                  child: AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 200),
-                    child: _bottomPanelMode == _BottomPanelMode.seatInfo
-                        ? _buildSeatInfoPanel()
-                        : _buildCartPanel(),
-                  ),
-                ),
-              ),
-            ),
-        ],
-      ),
+        );
+      },
     );
   }
 
-  Widget _buildSeatInfoPanel() {
-    final seat = _focusedSeat;
-    if (seat == null) {
-      return const SizedBox.shrink();
-    }
-    final isAdded = _selectedSeats.containsKey(seat);
+  Widget _buildSeatGrid(List<Seat> seats) {
+    final maxRow = seats.map((s) => s.row).fold(0, (prev, curr) => curr > prev ? curr : prev);
+    
+    return Column(
+      children: List.generate(maxRow, (rIndex) {
+        final row = rIndex + 1;
+        final rowSeats = seats.where((s) => s.row == row).toList()..sort((a, b) => a.column.compareTo(b.column));
+        
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 6),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: rowSeats.map((seat) {
+              return _SeatWidget(
+                seat: seat,
+                isSelected: _selectedSeats.containsKey(seat.id),
+                onTap: () => _focusSeat(seat),
+              );
+            }).toList(),
+          ),
+        );
+      }),
+    );
+  }
+
+  Widget _buildSeatInfoPanel(Seat seat) {
+    final tariffs = ['Детский', 'Студенческий', 'Взрослый'];
     return Column(
       key: const ValueKey('seat-info-panel'),
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Ряд ${seat.row}, Место ${seat.seat}',
+          'Ряд ${seat.row}, Место ${seat.column} ${seat.isVip ? "(VIP)" : ""}',
           style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
         ),
         const SizedBox(height: 10),
@@ -226,11 +210,11 @@ class _SeatSelectionScreenState extends State<SeatSelectionScreen> {
         Wrap(
           spacing: 8,
           runSpacing: 8,
-          children: TicketTariff.values.map((tariff) {
+          children: tariffs.map((t) {
             return ChoiceChip(
-              selected: _activeTariff == tariff,
-              label: Text('${tariff.label} • ${_priceFor(seat, tariff)} ₸'),
-              onSelected: (_) => setState(() => _activeTariff = tariff),
+              selected: _activeTariff == t,
+              label: Text('$t • ${_calculatePrice(seat, t)} ₸'),
+              onSelected: (_) => setState(() => _activeTariff = t),
             );
           }).toList(),
         ),
@@ -238,13 +222,13 @@ class _SeatSelectionScreenState extends State<SeatSelectionScreen> {
         SizedBox(
           width: double.infinity,
           child: ElevatedButton(
-            onPressed: _addFocusedSeat,
+            onPressed: () => _addFocusedSeat(seat),
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFFE53935),
               foregroundColor: Colors.white,
               minimumSize: const Size.fromHeight(48),
             ),
-            child: Text(isAdded ? 'Обновить' : 'Добавить'),
+            child: Text(_selectedSeats.containsKey(seat.id) ? 'Обновить' : 'Добавить'),
           ),
         ),
         if (_selectedSeats.isNotEmpty) ...[
@@ -258,14 +242,14 @@ class _SeatSelectionScreenState extends State<SeatSelectionScreen> {
     );
   }
 
-  Widget _buildCartPanel() {
+  Widget _buildCartPanel(MovieSession session) {
     return Column(
       key: const ValueKey('cart-panel'),
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          '${_selectedSeats.length} билет(ов) • $_totalPrice ₸',
+          '${_selectedSeats.length} билет(ов) • ${_getTotalPrice(session.seats)} ₸',
           style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
         ),
         const SizedBox(height: 10),
@@ -274,13 +258,15 @@ class _SeatSelectionScreenState extends State<SeatSelectionScreen> {
           child: ListView(
             scrollDirection: Axis.horizontal,
             children: _selectedSeats.entries.map((entry) {
+              final seatId = entry.key;
+              final seat = session.seats.firstWhere((s) => s.id == seatId);
               return Container(
                 margin: const EdgeInsets.only(right: 8),
                 child: Chip(
                   backgroundColor: const Color(0xFF262626),
-                  label: Text('Р${entry.key.row}-М${entry.key.seat} (${entry.value.short})'),
+                  label: Text('Р${seat.row}-М${seat.column}'),
                   deleteIcon: const Icon(Icons.close, size: 16),
-                  onDeleted: () => _removeSeat(entry.key),
+                  onDeleted: () => _removeSeat(seatId),
                 ),
               );
             }).toList(),
@@ -290,16 +276,67 @@ class _SeatSelectionScreenState extends State<SeatSelectionScreen> {
         SizedBox(
           width: double.infinity,
           child: ElevatedButton(
-            onPressed: _goToCheckout,
+            onPressed: _handleBooking,
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFFE53935),
               foregroundColor: Colors.white,
               minimumSize: const Size.fromHeight(50),
             ),
-            child: const Text('Купить билеты'),
+            child: const Text('Забронировать'),
           ),
         ),
       ],
+    );
+  }
+}
+
+class _SeatWidget extends StatelessWidget {
+  const _SeatWidget({
+    required this.seat,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  final Seat seat;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    Color borderColor = const Color(0xFF5A5A5A);
+    Color fillColor = Colors.transparent;
+
+    if (seat.isVip) borderColor = const Color(0xFFFFC85A);
+    if (!seat.isAvailable) {
+      borderColor = const Color(0xFFA4A4A4);
+      fillColor = const Color(0xFFA4A4A4);
+    }
+    if (isSelected) {
+      borderColor = const Color(0xFFE53935);
+      fillColor = const Color(0xFFE53935);
+    }
+
+    return GestureDetector(
+      onTap: seat.isAvailable ? onTap : null,
+      child: Container(
+        width: 26,
+        height: 22,
+        margin: const EdgeInsets.symmetric(horizontal: 2),
+        decoration: BoxDecoration(
+          color: fillColor,
+          borderRadius: BorderRadius.circular(5),
+          border: Border.all(color: borderColor, width: 1.5),
+        ),
+        alignment: Alignment.center,
+        child: Text(
+          '${seat.column}',
+          style: TextStyle(
+            fontSize: 9,
+            fontWeight: FontWeight.w700,
+            color: isSelected || !seat.isAvailable ? Colors.black : const Color(0xFFCFCFCF),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -310,21 +347,18 @@ class _ScreenArc extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: 310,
-      height: 86,
+      width: 300,
+      height: 40,
       child: CustomPaint(
         painter: _ScreenPainter(),
         child: const Center(
-          child: Padding(
-            padding: EdgeInsets.only(top: 20),
-            child: Text(
-              'Экран',
-              style: TextStyle(
-                color: Color(0xFF102844),
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.4,
-              ),
+          child: Text(
+            'ЭКРАН',
+            style: TextStyle(
+              color: Colors.white54,
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 8,
             ),
           ),
         ),
@@ -336,106 +370,20 @@ class _ScreenArc extends StatelessWidget {
 class _ScreenPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
-    final rect = Rect.fromLTWH(0, 4, size.width, size.height - 14);
-    final gradient = const LinearGradient(colors: [Color(0xFFFFFFFF), Color(0xFF8EC5FF)]);
-    final paint = Paint()..shader = gradient.createShader(rect);
+    final paint = Paint()
+      ..color = const Color(0xFFE53935).withOpacity(0.5)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3;
 
     final path = Path()
-      ..moveTo(8, 18)
-      ..quadraticBezierTo(size.width / 2, 2, size.width - 8, 18)
-      ..quadraticBezierTo(size.width - 18, size.height - 6, size.width / 2, size.height)
-      ..quadraticBezierTo(18, size.height - 6, 8, 18)
-      ..close();
+      ..moveTo(0, size.height)
+      ..quadraticBezierTo(size.width / 2, 0, size.width, size.height);
 
-    canvas.drawShadow(path, const Color(0x668EC5FF), 16, false);
     canvas.drawPath(path, paint);
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
-
-class _SeatWidget extends StatelessWidget {
-  const _SeatWidget({
-    required this.seat,
-    required this.isOccupied,
-    required this.isSelected,
-    required this.isVip,
-    required this.onTap,
-  });
-
-  final TicketSeat seat;
-  final bool isOccupied;
-  final bool isSelected;
-  final bool isVip;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    Color borderColor = const Color(0xFF5A5A5A);
-    Color fillColor = Colors.transparent;
-
-    if (isVip) {
-      borderColor = const Color(0xFFFFC85A);
-    }
-    if (isOccupied) {
-      borderColor = const Color(0xFFA4A4A4);
-      fillColor = const Color(0xFFA4A4A4);
-    }
-    if (isSelected) {
-      borderColor = const Color(0xFFE53935);
-      fillColor = const Color(0xFFE53935);
-    }
-
-    return GestureDetector(
-      onTap: isOccupied ? null : onTap,
-      child: Container(
-        width: 30,
-        height: 26,
-        margin: const EdgeInsets.symmetric(horizontal: 3),
-        decoration: BoxDecoration(
-          color: fillColor,
-          borderRadius: BorderRadius.circular(7),
-          border: Border.all(color: borderColor, width: 1.5),
-        ),
-        alignment: Alignment.center,
-        child: Text(
-          '${seat.seat}',
-          style: TextStyle(
-            fontSize: 10,
-            fontWeight: FontWeight.w700,
-            color: isSelected || isOccupied ? Colors.black : const Color(0xFFCFCFCF),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class TicketSeat {
-  const TicketSeat({required this.row, required this.seat});
-
-  final int row;
-  final int seat;
-
-  @override
-  bool operator ==(Object other) {
-    return other is TicketSeat && other.row == row && other.seat == seat;
-  }
-
-  @override
-  int get hashCode => Object.hash(row, seat);
-}
-
-enum TicketTariff {
-  adult('Взрослый', 'ВЗР'),
-  child('Детский', 'ДЕТ'),
-  student('Студенческий', 'СТУ');
-
-  const TicketTariff(this.label, this.short);
-
-  final String label;
-  final String short;
+  bool shouldRepaint(CustomPainter oldDelegate) => false;
 }
 
 enum _BottomPanelMode { hidden, seatInfo, cart }

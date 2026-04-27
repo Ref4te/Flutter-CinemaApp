@@ -70,7 +70,7 @@ class TmdbRepository {
     final movies = uniqueMoviesById.values
         .where((movie) => (movie['poster_path'] as String?)?.isNotEmpty == true)
         .where((movie) => (movie['release_date'] as String?)?.trim().isNotEmpty == true)
-        .take(120)
+        .take(25) // Сокращено до 25 фильмов
         .map((movie) => MovieItem.fromTmdb(movie, genreMap: genreMap))
         .toList(growable: false);
 
