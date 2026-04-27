@@ -5,21 +5,27 @@ import '../../domain/entities/session.dart';
 import 'tmdb_repository.dart';
 
 class BookingRepository {
+  static const String _adminEmail = 'manat11@mail.ru';
+
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final TmdbRepository _tmdbRepository = TmdbRepository();
 
-  Future<void> generateScheduleForAdmin() async {
-    final user = _auth.currentUser;
-    if (user == null || user.email != 'manat11@mail.ru') {
-      print('Access denied: User is not admin');
-      return;
+  bool get isAdmin => _auth.currentUser?.email == _adminEmail;
+
+  Future<void> _ensureAdmin() async {
+    if (!isAdmin) {
+      throw StateError('Access denied: user is not admin');
     }
+  }
+
+  Future<void> generateScheduleForAdmin() async {
+    await _ensureAdmin();
 
     final homeData = await _tmdbRepository.loadHomeData();
     var movies = homeData.movies.toList();
     movies.shuffle();
-    final selectedMovies = movies.take(25).toList();
+    final selectedMovies = movies.take(30).toList();
 
     if (selectedMovies.isEmpty) return;
 
@@ -29,78 +35,154 @@ class BookingRepository {
       {'name': 'Keruen Cinema', 'address': 'ул. Достык, 9'},
     ];
 
+    final random = Random();
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
+    final operations = <({DocumentReference ref, Map<String, dynamic> data})>[];
 
-    final batch = _firestore.batch();
-    final random = Random();
+    for (int dayOffset = 0; dayOffset < 3; dayOffset++) {
+      final baseDate = today.add(Duration(days: dayOffset));
+      final dayStart = DateTime(baseDate.year, baseDate.month, baseDate.day, 10);
+      final dayEnd = DateTime(
+        baseDate.year,
+        baseDate.month,
+        baseDate.day,
+      ).add(const Duration(days: 1, hours: 1));
 
-    for (var cinema in cinemas) {
-      for (int hallId = 1; hallId <= 4; hallId++) {
-        DateTime currentTime = today.add(const Duration(hours: 10)); 
-        final endTimeLimit = today.add(const Duration(hours: 24)); 
+      for (var cinema in cinemas) {
+        for (int hallId = 1; hallId <= 3; hallId++) {
+          DateTime currentTime = dayStart;
+          int lastMovieId = -1;
 
-        int lastMovieId = -1;
+          while (currentTime.isBefore(dayEnd)) {
+            var availableMovies = selectedMovies
+                .where((m) => m.id != lastMovieId)
+                .toList();
+            if (availableMovies.isEmpty) availableMovies = selectedMovies;
+            final movie =
+                availableMovies[random.nextInt(availableMovies.length)];
+            lastMovieId = movie.id;
 
-        while (currentTime.add(const Duration(minutes: 60)).isBefore(endTimeLimit)) {
-          var availableMovies = selectedMovies.where((m) => m.id != lastMovieId).toList();
-          if (availableMovies.isEmpty) availableMovies = selectedMovies;
-          final movie = availableMovies[random.nextInt(availableMovies.length)];
-          lastMovieId = movie.id;
+            final duration = _parseDuration(movie.duration);
+            final sessionEndTime = currentTime.add(Duration(minutes: duration));
+            if (sessionEndTime.isAfter(dayEnd)) {
+              break;
+            }
 
-          int duration = _parseDuration(movie.duration);
-          final sessionEndTime = currentTime.add(Duration(minutes: duration));
-          if (sessionEndTime.isAfter(endTimeLimit)) break;
+            final capacity = [60, 70, 80][random.nextInt(3)];
+            final seats = _generateSeats(capacity);
 
-          final capacity = [60, 70, 80][random.nextInt(3)];
-          final seats = _generateSeats(capacity);
+            operations.add((
+              ref: _firestore.collection('sessions').doc(),
+              data: {
+                'movieId': movie.id,
+                'movieTitle': movie.title,
+                'startTime': Timestamp.fromDate(currentTime),
+                'endTime': Timestamp.fromDate(sessionEndTime),
+                'cinemaName': cinema['name'],
+                'hallId': hallId,
+                'seats': seats.map((s) => s.toMap()).toList(),
+              },
+            ));
 
-          final sessionRef = _firestore.collection('sessions').doc();
-          batch.set(sessionRef, {
-            'movieId': movie.id,
-            'movieTitle': movie.title,
-            'startTime': Timestamp.fromDate(currentTime),
-            'endTime': Timestamp.fromDate(sessionEndTime),
-            'cinemaName': cinema['name'],
-            'hallId': hallId,
-            'seats': seats.map((s) => s.toMap()).toList(),
-          });
-
-          DateTime nextTime = sessionEndTime.add(const Duration(minutes: 20));
-          int minute = nextTime.minute;
-          if (minute % 10 != 0) {
-            nextTime = nextTime.add(Duration(minutes: 10 - (minute % 10)));
+            currentTime = sessionEndTime.add(const Duration(minutes: 20));
           }
-          currentTime = DateTime(nextTime.year, nextTime.month, nextTime.day, nextTime.hour, nextTime.minute);
         }
       }
     }
 
-    await batch.commit();
+    await _commitSetOperations(operations);
   }
 
   Future<void> clearAllData() async {
-    final user = _auth.currentUser;
-    if (user == null || user.email != 'manat11@mail.ru') {
-      print('Access denied: User is not admin');
-      return;
+    await deleteSessions();
+    await _deleteTickets();
+  }
+
+  Future<void> deleteSessions({int? movieId}) async {
+    await _ensureAdmin();
+
+    Query<Map<String, dynamic>> query = _firestore.collection('sessions');
+    if (movieId != null) {
+      query = query.where('movieId', isEqualTo: movieId);
+    }
+    final sessions = await query.get();
+    await _commitDeleteDocs(sessions.docs.map((doc) => doc.reference).toList());
+    await _deleteTickets(movieId: movieId);
+  }
+
+  Future<void> clearBookedSeats({int? movieId}) async {
+    await _ensureAdmin();
+
+    Query<Map<String, dynamic>> query = _firestore.collection('sessions');
+    if (movieId != null) {
+      query = query.where('movieId', isEqualTo: movieId);
     }
 
-    // Удаление всех сессий
-    final sessions = await _firestore.collection('sessions').get();
-    final sessionBatch = _firestore.batch();
-    for (var doc in sessions.docs) {
-      sessionBatch.delete(doc.reference);
-    }
-    await sessionBatch.commit();
+    final sessions = await query.get();
+    final operations = <({DocumentReference ref, Map<String, dynamic> data})>[];
 
-    // Удаление всех билетов
-    final tickets = await _firestore.collection('tickets').get();
-    final ticketBatch = _firestore.batch();
-    for (var doc in tickets.docs) {
-      ticketBatch.delete(doc.reference);
+    for (final doc in sessions.docs) {
+      final data = doc.data();
+      final rawSeats = List<Map<String, dynamic>>.from(data['seats'] ?? []);
+      final resetSeats = rawSeats
+          .map((seat) => {
+                ...seat,
+                'isAvailable': true,
+              })
+          .toList();
+
+      operations.add((
+        ref: doc.reference,
+        data: {'seats': resetSeats},
+      ));
     }
-    await ticketBatch.commit();
+
+    await _commitUpdateOperations(operations);
+    await _deleteTickets(movieId: movieId);
+  }
+
+  Future<void> _deleteTickets({int? movieId}) async {
+    Query<Map<String, dynamic>> query = _firestore.collection('tickets');
+    if (movieId != null) {
+      query = query.where('movieId', isEqualTo: movieId);
+    }
+    final tickets = await query.get();
+    await _commitDeleteDocs(tickets.docs.map((doc) => doc.reference).toList());
+  }
+
+  Future<void> _commitDeleteDocs(List<DocumentReference> refs) async {
+    for (var i = 0; i < refs.length; i += 450) {
+      final batch = _firestore.batch();
+      for (final ref in refs.skip(i).take(450)) {
+        batch.delete(ref);
+      }
+      await batch.commit();
+    }
+  }
+
+  Future<void> _commitSetOperations(
+    List<({DocumentReference ref, Map<String, dynamic> data})> operations,
+  ) async {
+    for (var i = 0; i < operations.length; i += 450) {
+      final batch = _firestore.batch();
+      for (final op in operations.skip(i).take(450)) {
+        batch.set(op.ref, op.data);
+      }
+      await batch.commit();
+    }
+  }
+
+  Future<void> _commitUpdateOperations(
+    List<({DocumentReference ref, Map<String, dynamic> data})> operations,
+  ) async {
+    for (var i = 0; i < operations.length; i += 450) {
+      final batch = _firestore.batch();
+      for (final op in operations.skip(i).take(450)) {
+        batch.update(op.ref, op.data);
+      }
+      await batch.commit();
+    }
   }
 
   int _parseDuration(String durationStr) {
