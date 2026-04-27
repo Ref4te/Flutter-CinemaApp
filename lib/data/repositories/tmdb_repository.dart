@@ -3,13 +3,26 @@ import 'dart:convert';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 
+import '../../core/settings/app_settings.dart';
 import '../../domain/entities/movie.dart';
 import '../../domain/entities/movie_details.dart';
 
 class TmdbRepository {
   static const String _apiBaseUrl = 'https://api.themoviedb.org/3';
   static String get _apiKey => dotenv.env['TMDB_API_KEY'] ?? '';
-  static const String _language = 'ru-RU';
+  String get _language {
+    final lang = AppSettings.language.value;
+
+    if (lang == 'Қазақша') {
+      return 'ru-RU'; // fallback вместо kk-KZ
+    }
+
+    if (lang == 'English') {
+      return 'en-US';
+    }
+
+    return 'ru-RU';
+  }
 
   Future<TmdbHomeData> loadHomeData() async {
     if (_apiKey.isEmpty) {
@@ -43,9 +56,11 @@ class TmdbRepository {
     );
     final trendingResponse = await _getJson('/trending/movie/week');
 
-    final rawDiscoverPage1Movies = (discoverPage1Response['results'] as List<dynamic>? ?? [])
+    final rawDiscoverPage1Movies =
+    (discoverPage1Response['results'] as List<dynamic>? ?? [])
         .cast<Map<String, dynamic>>();
-    final rawDiscoverPage2Movies = (discoverPage2Response['results'] as List<dynamic>? ?? [])
+    final rawDiscoverPage2Movies =
+    (discoverPage2Response['results'] as List<dynamic>? ?? [])
         .cast<Map<String, dynamic>>();
     final rawUpcomingPage1Movies = (upcomingPage1Response['results'] as List<dynamic>? ?? [])
         .cast<Map<String, dynamic>>();
@@ -60,7 +75,9 @@ class TmdbRepository {
       ...rawDiscoverPage1Movies,
       ...rawDiscoverPage2Movies,
     ];
+
     final uniqueMoviesById = <int, Map<String, dynamic>>{};
+
     for (final movie in combinedMovies) {
       final id = movie['id'] as int?;
       if (id == null) continue;
@@ -137,6 +154,7 @@ class TmdbRepository {
         .cast<Map<String, dynamic>>();
 
     final trailerYoutubeId = _extractTrailerYoutubeId(videos);
+
     String? director;
     for (final member in crew) {
       if (member['job'] == 'Director') {
@@ -159,20 +177,25 @@ class TmdbRepository {
 
     final reviews = reviewsJson
         .map((review) {
-          final content = (review['content'] as String?)?.trim() ?? '';
-          if (content.isEmpty) return null;
+      final content = (review['content'] as String?)?.trim() ?? '';
+      if (content.isEmpty) return null;
 
-          return MovieReviewData(
-            author: (review['author'] as String?)?.trim().isNotEmpty == true
-                ? (review['author'] as String).trim()
-                : 'Аноним',
-            content: content,
-            createdAt: DateTime.tryParse((review['created_at'] as String?) ?? ''),
-            rating: (review['author_details'] as Map<String, dynamic>?)?['rating'] == null
-                ? null
-                : ((review['author_details'] as Map<String, dynamic>)['rating'] as num).toDouble(),
-          );
-        })
+      return MovieReviewData(
+        author: (review['author'] as String?)?.trim().isNotEmpty == true
+            ? (review['author'] as String).trim()
+            : 'Аноним',
+        content: content,
+        createdAt:
+        DateTime.tryParse((review['created_at'] as String?) ?? ''),
+        rating: (review['author_details'] as Map<String, dynamic>?)?[
+        'rating'] ==
+            null
+            ? null
+            : ((review['author_details'] as Map<String, dynamic>)['rating']
+        as num)
+            .toDouble(),
+      );
+    })
         .whereType<MovieReviewData>()
         .take(10)
         .toList(growable: false);
@@ -181,19 +204,20 @@ class TmdbRepository {
     final voteCount = (json['vote_count'] as num?)?.toInt() ?? 0;
     final ageRating = _extractAgeRating(
       ((json['release_dates'] as Map<String, dynamic>?)?['results']
-              as List<dynamic>? ??
+      as List<dynamic>? ??
           [])
           .cast<Map<String, dynamic>>(),
     );
     final tagline = (json['tagline'] as String?)?.trim();
     final originalTitle = (json['original_title'] as String?)?.trim();
     final status = (json['status'] as String?)?.trim();
-    final releaseDateResults = ((json['release_dates'] as Map<String, dynamic>?)?['results']
-            as List<dynamic>? ??
+    final releaseDateResults =
+    ((json['release_dates'] as Map<String, dynamic>?)?['results']
+    as List<dynamic>? ??
         [])
         .cast<Map<String, dynamic>>();
-    final releaseDate =
-        _extractReleaseDateByCountry(releaseDateResults, 'KZ') ??
+
+    final releaseDate = _extractReleaseDateByCountry(releaseDateResults, 'KZ') ??
         _extractReleaseDateByCountry(releaseDateResults, 'RU') ??
         DateTime.tryParse((json['release_date'] as String?) ?? '');
 
@@ -210,7 +234,8 @@ class TmdbRepository {
       voteCount: voteCount,
       ageRating: ageRating,
       tagline: tagline == null || tagline.isEmpty ? null : tagline,
-      originalTitle: originalTitle == null || originalTitle.isEmpty ? null : originalTitle,
+      originalTitle:
+      originalTitle == null || originalTitle.isEmpty ? null : originalTitle,
       status: status == null || status.isEmpty ? null : status,
       releaseDate: releaseDate,
     );
@@ -218,6 +243,7 @@ class TmdbRepository {
 
   String? _extractAgeRating(List<Map<String, dynamic>> releaseDateResults) {
     const priority = ['KZ', 'RU', 'US'];
+
     for (final country in priority) {
       final value = _extractCertificationForCountry(releaseDateResults, country);
       if (value != null) return value;
@@ -230,42 +256,54 @@ class TmdbRepository {
       );
       if (value != null) return value;
     }
+
     return null;
   }
 
   String? _extractCertificationForCountry(
-    List<Map<String, dynamic>> releaseDateResults,
-    String? countryCode,
-  ) {
+      List<Map<String, dynamic>> releaseDateResults,
+      String? countryCode,
+      ) {
     if (countryCode == null || countryCode.isEmpty) return null;
 
     for (final result in releaseDateResults) {
       if (result['iso_3166_1'] != countryCode) continue;
-      final releaseDates = (result['release_dates'] as List<dynamic>? ?? [])
+
+      final releaseDates =
+      (result['release_dates'] as List<dynamic>? ?? [])
           .cast<Map<String, dynamic>>();
+
       for (final release in releaseDates) {
         final certification = (release['certification'] as String?)?.trim();
+
         if (certification != null && certification.isNotEmpty) {
           return certification;
         }
       }
     }
+
     return null;
   }
 
   DateTime? _extractReleaseDateByCountry(
-    List<Map<String, dynamic>> releaseDateResults,
-    String countryCode,
-  ) {
+      List<Map<String, dynamic>> releaseDateResults,
+      String countryCode,
+      ) {
     for (final result in releaseDateResults) {
       if (result['iso_3166_1'] != countryCode) continue;
-      final releaseDates = (result['release_dates'] as List<dynamic>? ?? [])
+
+      final releaseDates =
+      (result['release_dates'] as List<dynamic>? ?? [])
           .cast<Map<String, dynamic>>();
+
       for (final release in releaseDates) {
-        final date = DateTime.tryParse((release['release_date'] as String?) ?? '');
+        final date =
+        DateTime.tryParse((release['release_date'] as String?) ?? '');
+
         if (date != null) return date;
       }
     }
+
     return null;
   }
 
@@ -278,34 +316,44 @@ class TmdbRepository {
         if (key != null && key.isNotEmpty) return key;
       }
     }
+
     for (final video in videos) {
       if (video['site'] == 'YouTube' && video['type'] == 'Trailer') {
         final key = video['key'] as String?;
         if (key != null && key.isNotEmpty) return key;
       }
     }
+
     for (final video in videos) {
       if (video['site'] == 'YouTube') {
         final key = video['key'] as String?;
         if (key != null && key.isNotEmpty) return key;
       }
     }
+
     return null;
   }
 
-  Future<Map<String, dynamic>> _getJson(String path, {String extraQuery = ''}) async {
+  Future<Map<String, dynamic>> _getJson(
+      String path, {
+        String extraQuery = '',
+      }) async {
     final normalizedExtra = extraQuery.isEmpty
         ? ''
         : extraQuery.startsWith('&')
-            ? extraQuery
-            : '&$extraQuery';
+        ? extraQuery
+        : '&$extraQuery';
+
     final uri = Uri.parse(
       '$_apiBaseUrl$path?api_key=$_apiKey&language=$_language$normalizedExtra',
     );
+
     final response = await http.get(uri);
 
     if (response.statusCode >= 400) {
-      throw Exception('TMDb вернул ошибку ${response.statusCode}: ${response.body}');
+      throw Exception(
+        'TMDb вернул ошибку ${response.statusCode}: ${response.body}',
+      );
     }
 
     return jsonDecode(response.body) as Map<String, dynamic>;

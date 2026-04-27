@@ -5,6 +5,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../details/movie_detail_screen.dart';
 import '../../../domain/entities/movie.dart';
 import '../../../data/repositories/tmdb_repository.dart';
+import '../../../core/localization/app_strings.dart';
+import '../../../core/settings/app_settings.dart';
 
 class FavoritesPage extends StatefulWidget {
   const FavoritesPage({super.key});
@@ -23,6 +25,20 @@ class _FavoritesPageState extends State<FavoritesPage> {
   void initState() {
     super.initState();
     _favoritesFuture = _loadFavorites();
+    AppSettings.language.addListener(_reloadFavorites);
+  }
+
+  @override
+  void dispose() {
+    AppSettings.language.removeListener(_reloadFavorites);
+    super.dispose();
+  }
+
+  void _reloadFavorites() {
+    if (!mounted) return;
+    setState(() {
+      _favoritesFuture = _loadFavorites();
+    });
   }
 
   Future<List<_FavoriteMovieView>> _loadFavorites() async {
@@ -71,6 +87,7 @@ class _FavoritesPageState extends State<FavoritesPage> {
       final favorites = prefs.getStringList(_favoritesKey) ?? <String>[];
       favorites.remove(movie.id.toString());
       await prefs.setStringList(_favoritesKey, favorites);
+
       if (!mounted) return;
       setState(() {
         _favoritesFuture = _loadFavorites();
@@ -82,109 +99,132 @@ class _FavoritesPageState extends State<FavoritesPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Избранные')),
-      body: FutureBuilder<List<_FavoriteMovieView>>(
-        future: _favoritesFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
+    final theme = Theme.of(context);
 
-          if (snapshot.hasError) {
-            return Center(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Text(
-                  'Не удалось загрузить избранные фильмы.\n${snapshot.error}',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(color: Color(0xFFB0B0B0)),
-                ),
-              ),
-            );
-          }
+    return ValueListenableBuilder<String>(
+      valueListenable: AppSettings.language,
+      builder: (context, language, child) {
+        return Scaffold(
+          appBar: AppBar(
+            title: Text(AppStrings.t('favorites')),
+          ),
+          body: FutureBuilder<List<_FavoriteMovieView>>(
+            future: _favoritesFuture,
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
 
-          final movies = snapshot.data ?? const <_FavoriteMovieView>[];
-          if (movies.isEmpty) {
-            return const Center(
-              child: Padding(
-                padding: EdgeInsets.all(24),
-                child: Text(
-                  'У вас пока нет избранных фильмов.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: Color(0xFFB0B0B0)),
-                ),
-              ),
-            );
-          }
-
-          return ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: movies.length,
-            itemBuilder: (context, index) {
-              final favoriteMovie = movies[index];
-              final movie = favoriteMovie.movie;
-              final genresText = favoriteMovie.genres.isEmpty
-                  ? movie.category
-                  : favoriteMovie.genres.join(', ');
-              final runtimeText = favoriteMovie.runtimeMinutes > 0
-                  ? '${favoriteMovie.runtimeMinutes} мин'
-                  : movie.duration;
-              return Card(
-                color: const Color(0xFF1D1D1D),
-                margin: const EdgeInsets.only(bottom: 12),
-                child: ListTile(
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 8,
-                  ),
-                  leading: ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: movie.imageUrl.isEmpty
-                        ? Container(
-                            width: 46,
-                            height: 64,
-                            color: const Color(0xFF2E2E2E),
-                            alignment: Alignment.center,
-                            child: const Icon(
-                              Icons.movie_creation_outlined,
-                              color: Color(0xFFE53935),
-                            ),
-                          )
-                        : Image.network(
-                            movie.imageUrl,
-                            width: 46,
-                            height: 64,
-                            fit: BoxFit.cover,
-                          ),
-                  ),
-                  title: Text(movie.title),
-                  subtitle: Text(
-                    '$genresText • $runtimeText',
-                    style: const TextStyle(color: Color(0xFF9A9A9A)),
-                  ),
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => MovieDetailScreen(movie: movie),
+              if (snapshot.hasError) {
+                return Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Text(
+                      AppStrings.t('favorites_error'),
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: theme.textTheme.bodyMedium!.color,
                       ),
-                    ).then((_) {
-                      setState(() {
-                        _favoritesFuture = _loadFavorites();
-                      });
-                    });
-                  },
-                  trailing: IconButton(
-                    icon: const Icon(Icons.favorite, color: Color(0xFFE53935)),
-                    onPressed: () => _removeFromFavorites(movie),
+                    ),
                   ),
-                ),
+                );
+              }
+
+              final movies = snapshot.data ?? const <_FavoriteMovieView>[];
+
+              if (movies.isEmpty) {
+                return Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Text(
+                      AppStrings.t('favorites_empty'),
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: theme.textTheme.bodyMedium!.color,
+                      ),
+                    ),
+                  ),
+                );
+              }
+
+              return ListView.builder(
+                padding: const EdgeInsets.all(16),
+                itemCount: movies.length,
+                itemBuilder: (context, index) {
+                  final favoriteMovie = movies[index];
+                  final movie = favoriteMovie.movie;
+
+                  final genresText = favoriteMovie.genres.isEmpty
+                      ? movie.category
+                      : favoriteMovie.genres.join(', ');
+
+                  final runtimeText = favoriteMovie.runtimeMinutes > 0
+                      ? '${favoriteMovie.runtimeMinutes} ${AppStrings.t('min')}'
+                      : movie.duration;
+
+                  return Card(
+                    color: theme.cardColor, // ✅ фикс
+                    margin: const EdgeInsets.only(bottom: 12),
+                    child: ListTile(
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                      leading: ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: movie.imageUrl.isEmpty
+                            ? Container(
+                          width: 46,
+                          height: 64,
+                          color: theme.colorScheme.surface, // ✅ фикс
+                          alignment: Alignment.center,
+                          child: const Icon(
+                            Icons.movie_creation_outlined,
+                            color: Color(0xFFE53935),
+                          ),
+                        )
+                            : Image.network(
+                          movie.imageUrl,
+                          width: 46,
+                          height: 64,
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                      title: Text(movie.title),
+                      subtitle: Text(
+                        '$genresText • $runtimeText',
+                        style: TextStyle(
+                          color: theme.textTheme.bodySmall!.color, // ✅ фикс
+                        ),
+                      ),
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                MovieDetailScreen(movie: movie),
+                          ),
+                        ).then((_) {
+                          setState(() {
+                            _favoritesFuture = _loadFavorites();
+                          });
+                        });
+                      },
+                      trailing: IconButton(
+                        icon: const Icon(
+                          Icons.favorite,
+                          color: Color(0xFFE53935),
+                        ),
+                        onPressed: () => _removeFromFavorites(movie),
+                      ),
+                    ),
+                  );
+                },
               );
             },
-          );
-        },
-      ),
+          ),
+        );
+      },
     );
   }
 }
