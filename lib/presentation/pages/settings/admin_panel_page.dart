@@ -388,6 +388,11 @@ class _ScheduleManagementTabState extends State<_ScheduleManagementTab> {
                               icon: const Icon(Icons.add_circle_outline),
                               tooltip: 'Добавить ячейку',
                             ),
+                            IconButton(
+                              onPressed: () => _removeSlotForHall(hallCells),
+                              icon: const Icon(Icons.remove_circle_outline),
+                              tooltip: 'Удалить ячейку',
+                            ),
                           ],
                         ),
                         const SizedBox(height: 8),
@@ -482,25 +487,45 @@ class _ScheduleManagementTabState extends State<_ScheduleManagementTab> {
     );
     if (picked == null) return;
 
-    final newTime = _roundTo10(DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day, picked.hour, picked.minute));
+    final pivotTime = _roundTo10(DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day, picked.hour, picked.minute));
+    final gap = Duration(minutes: duration + 20);
+
     final snapshot = _grid.map((e) => e).toList();
     _undoStack.add(snapshot);
 
-    final updated = pivot.copyWith(
-      startTime: newTime,
-      movieId: _selectedMovie!.id,
-      movieTitle: _selectedMovie!.title,
-    );
+    final sorted = hallCells.toList()..sort((a, b) => a.slotIndex.compareTo(b.slotIndex));
+    final pivotIndex = sorted.indexWhere((e) => e.id == pivot.id);
+    if (pivotIndex < 0) return;
 
-    final sorted = hallCells.toList()..sort((a, b) => a.startTime.compareTo(b.startTime));
-    final first = sorted.isNotEmpty ? sorted.first : null;
+    final updated = <String, ScheduleCellItem>{};
     final conflicts = <String>{};
-    if (first != null && first.id != updated.id && updated.startTime.isBefore(first.startTime)) {
-      conflicts.add(updated.id);
+
+    DateTime t = pivotTime;
+    for (int i = pivotIndex; i < sorted.length; i++) {
+      final c = sorted[i];
+      if (i != pivotIndex) {
+        t = _roundTo10(t.add(gap));
+      }
+      if (c.movieId != null && c.movieId != _selectedMovie!.id) {
+        conflicts.add(c.id);
+        break;
+      }
+      updated[c.id] = c.copyWith(startTime: t, movieId: _selectedMovie!.id, movieTitle: _selectedMovie!.title);
+    }
+
+    t = pivotTime;
+    for (int i = pivotIndex - 1; i >= 0; i--) {
+      final c = sorted[i];
+      t = _roundTo10(t.subtract(gap));
+      if (c.movieId != null && c.movieId != _selectedMovie!.id) {
+        conflicts.add(c.id);
+        break;
+      }
+      updated[c.id] = c.copyWith(startTime: t, movieId: _selectedMovie!.id, movieTitle: _selectedMovie!.title);
     }
 
     setState(() {
-      _grid = _grid.map((cell) => cell.id == updated.id ? updated : cell).toList();
+      _grid = _grid.map((cell) => updated[cell.id] ?? cell).toList();
       _conflictCellIds = conflicts;
     });
   }
@@ -510,6 +535,19 @@ class _ScheduleManagementTabState extends State<_ScheduleManagementTab> {
     final first = hallCells.first;
     final hall = _halls.firstWhere((h) => h.ref.cinemaId == first.cinemaId && h.ref.hallId == first.hallId).ref;
     await _cellsService.addSlotForHall(date: _selectedDate, hall: hall);
+    final reloaded = await _cellsService.loadGrid(_selectedDate);
+    if (!mounted) return;
+    setState(() => _grid = reloaded);
+  }
+
+
+  Future<void> _removeSlotForHall(List<ScheduleCellItem> hallCells) async {
+    if (hallCells.isEmpty) return;
+    final first = hallCells.first;
+    final hall = _halls.firstWhere((h) => h.ref.cinemaId == first.cinemaId && h.ref.hallId == first.hallId).ref;
+    final snapshot = _grid.map((e) => e).toList();
+    _undoStack.add(snapshot);
+    await _cellsService.removeLastSlotForHall(date: _selectedDate, hall: hall);
     final reloaded = await _cellsService.loadGrid(_selectedDate);
     if (!mounted) return;
     setState(() => _grid = reloaded);

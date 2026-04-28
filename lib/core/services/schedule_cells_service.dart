@@ -82,6 +82,27 @@ class ScheduleCellsService {
     });
   }
 
+
+  Future<void> removeLastSlotForHall({
+    required DateTime date,
+    required HallRef hall,
+  }) async {
+    final key = dateKey(date);
+    final hallCells = await _firestore
+        .collection('schedule_cells')
+        .where('dateKey', isEqualTo: key)
+        .where('cinemaId', isEqualTo: hall.cinemaId)
+        .where('hallId', isEqualTo: hall.hallId)
+        .get();
+
+    if (hallCells.docs.length <= 1) return;
+
+    final items = hallCells.docs.map((d) => ScheduleCellItem.fromDoc(d)).toList()
+      ..sort((a, b) => a.slotIndex.compareTo(b.slotIndex));
+    final last = items.last;
+    await _firestore.collection('schedule_cells').doc(last.id).delete();
+  }
+
   Future<List<ScheduleCellItem>> loadGrid(DateTime date) async {
     final key = dateKey(date);
     final snap = await _firestore.collection('schedule_cells').where('dateKey', isEqualTo: key).get();
