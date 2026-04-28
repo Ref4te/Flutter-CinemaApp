@@ -733,10 +733,10 @@ class _ScheduleManagementTabState extends State<_ScheduleManagementTab> {
   }
 
   Future<void> _openPricesDialog() async {
-    final adultController = TextEditingController(text: _adultPriceController.text);
-    final studentController = TextEditingController(text: _studentPriceController.text);
-    final childController = TextEditingController(text: _childPriceController.text);
-    final vipController = TextEditingController(text: _vipPriceController.text);
+    String adult = _adultPriceController.text;
+    String student = _studentPriceController.text;
+    String child = _childPriceController.text;
+    String vip = _vipPriceController.text;
 
     final saved = await showDialog<bool>(
       context: context,
@@ -746,13 +746,33 @@ class _ScheduleManagementTabState extends State<_ScheduleManagementTab> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              _buildPriceField(adultController, 'Взрослый'),
+              TextFormField(
+                initialValue: adult,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(labelText: 'Взрослый (₸)', border: OutlineInputBorder(), isDense: true),
+                onChanged: (value) => adult = value,
+              ),
               const SizedBox(height: 8),
-              _buildPriceField(studentController, 'Студенческий'),
+              TextFormField(
+                initialValue: student,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(labelText: 'Студенческий (₸)', border: OutlineInputBorder(), isDense: true),
+                onChanged: (value) => student = value,
+              ),
               const SizedBox(height: 8),
-              _buildPriceField(childController, 'Детский'),
+              TextFormField(
+                initialValue: child,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(labelText: 'Детский (₸)', border: OutlineInputBorder(), isDense: true),
+                onChanged: (value) => child = value,
+              ),
               const SizedBox(height: 8),
-              _buildPriceField(vipController, 'VIP'),
+              TextFormField(
+                initialValue: vip,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(labelText: 'VIP (₸)', border: OutlineInputBorder(), isDense: true),
+                onChanged: (value) => vip = value,
+              ),
             ],
           ),
         ),
@@ -765,16 +785,12 @@ class _ScheduleManagementTabState extends State<_ScheduleManagementTab> {
 
     if (saved == true) {
       setState(() {
-        _adultPriceController.text = adultController.text;
-        _studentPriceController.text = studentController.text;
-        _childPriceController.text = childController.text;
-        _vipPriceController.text = vipController.text;
+        _adultPriceController.text = adult;
+        _studentPriceController.text = student;
+        _childPriceController.text = child;
+        _vipPriceController.text = vip;
       });
     }
-    adultController.dispose();
-    studentController.dispose();
-    childController.dispose();
-    vipController.dispose();
   }
 
   int _parseDuration(String durationStr) {
