@@ -381,17 +381,17 @@ class _ScheduleManagementTabState extends State<_ScheduleManagementTab> {
           const SizedBox(height: 10),
           Row(
             children: [
-              Expanded(child: _buildPriceField(_adultPriceController, 'Взрослый')),
-              const SizedBox(width: 8),
-              Expanded(child: _buildPriceField(_studentPriceController, 'Студенческий')),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Expanded(child: _buildPriceField(_childPriceController, 'Детский')),
-              const SizedBox(width: 8),
-              Expanded(child: _buildPriceField(_vipPriceController, 'VIP')),
+              Expanded(
+                child: Text(
+                  'Цены: Взр ${_adultPriceController.text} ₸ • Студ ${_studentPriceController.text} ₸ • Дет ${_childPriceController.text} ₸ • VIP ${_vipPriceController.text} ₸',
+                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+                ),
+              ),
+              TextButton.icon(
+                onPressed: _openPricesDialog,
+                icon: const Icon(Icons.edit_outlined),
+                label: const Text('Изменить цены'),
+              ),
             ],
           ),
           const SizedBox(height: 10),
@@ -730,6 +730,51 @@ class _ScheduleManagementTabState extends State<_ScheduleManagementTab> {
       child: parse(_childPriceController, 1200),
       vip: parse(_vipPriceController, 5000),
     );
+  }
+
+  Future<void> _openPricesDialog() async {
+    final adultController = TextEditingController(text: _adultPriceController.text);
+    final studentController = TextEditingController(text: _studentPriceController.text);
+    final childController = TextEditingController(text: _childPriceController.text);
+    final vipController = TextEditingController(text: _vipPriceController.text);
+
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Изменить цены билетов'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildPriceField(adultController, 'Взрослый'),
+              const SizedBox(height: 8),
+              _buildPriceField(studentController, 'Студенческий'),
+              const SizedBox(height: 8),
+              _buildPriceField(childController, 'Детский'),
+              const SizedBox(height: 8),
+              _buildPriceField(vipController, 'VIP'),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Отмена')),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Сохранить')),
+        ],
+      ),
+    );
+
+    if (saved == true) {
+      setState(() {
+        _adultPriceController.text = adultController.text;
+        _studentPriceController.text = studentController.text;
+        _childPriceController.text = childController.text;
+        _vipPriceController.text = vipController.text;
+      });
+    }
+    adultController.dispose();
+    studentController.dispose();
+    childController.dispose();
+    vipController.dispose();
   }
 
   int _parseDuration(String durationStr) {
