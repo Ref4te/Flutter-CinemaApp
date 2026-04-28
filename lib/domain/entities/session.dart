@@ -71,6 +71,18 @@ class MovieSession {
 
   factory MovieSession.fromFirestore(DocumentSnapshot doc) {
     Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
+    final rawHallId = data['hallId'];
+    int hallId;
+    if (rawHallId is int) {
+      hallId = rawHallId;
+    } else if (rawHallId is num) {
+      hallId = rawHallId.toInt();
+    } else if (rawHallId is String) {
+      hallId = int.tryParse(rawHallId) ?? 1;
+    } else {
+      hallId = 1;
+    }
+
     return MovieSession(
       id: doc.id,
       movieId: data['movieId'] ?? 0,
@@ -78,7 +90,7 @@ class MovieSession {
       startTime: (data['startTime'] as Timestamp).toDate(),
       endTime: (data['endTime'] as Timestamp).toDate(),
       cinemaName: data['cinemaName'] ?? '',
-      hallId: data['hallId'] ?? 0,
+      hallId: hallId,
       seats: (data['seats'] as List? ?? [])
           .map((s) => Seat.fromMap(s as Map<String, dynamic>))
           .toList(),

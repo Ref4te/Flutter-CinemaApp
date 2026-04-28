@@ -76,7 +76,8 @@ class AdminRepository {
             'cinemaName': cinema.data()['name'],
             'cinemaId': cinema.id,
             'cinemaAddress': cinema.data()['address'],
-            'hallId': hallDoc.id,
+            'hallId': _extractHallNumber(hallData['name']?.toString() ?? hallDoc.id),
+            'hallDocId': hallDoc.id,
             'hallName': hallData['name'] ?? hallDoc.id,
             'seats': seats.map((e) => e.toMap()).toList(),
           });
@@ -185,7 +186,8 @@ class AdminRepository {
           'cinemaName': hall.cinemaName,
           'cinemaId': hall.cinemaId,
           'cinemaAddress': hall.cinemaAddress,
-          'hallId': hall.hallId,
+          'hallId': _extractHallNumber(hall.hallName),
+          'hallDocId': hall.hallId,
           'hallName': hall.hallName,
           'seats': seats.map((e) => e.toMap()).toList(),
         });
@@ -196,7 +198,8 @@ class AdminRepository {
           'movieTitle': movie.title,
           'cinemaId': hall.cinemaId,
           'cinemaName': hall.cinemaName,
-          'hallId': hall.hallId,
+          'hallId': _extractHallNumber(hall.hallName),
+          'hallDocId': hall.hallId,
           'hallName': hall.hallName,
           'startTime': Timestamp.fromDate(currentStart),
           'endTime': Timestamp.fromDate(end),
@@ -306,7 +309,8 @@ class AdminRepository {
         'cinemaName': hall.cinemaName,
         'cinemaId': hall.cinemaId,
         'cinemaAddress': hall.cinemaAddress,
-        'hallId': hall.hallId,
+        'hallId': _extractHallNumber(hall.hallName),
+        'hallDocId': hall.hallId,
         'hallName': hall.hallName,
         'cleanupMinutes': cleanupMinutes,
         'seats': seats.map((e) => e.toMap()).toList(),
@@ -318,7 +322,8 @@ class AdminRepository {
         'movieTitle': movie.title,
         'cinemaId': hall.cinemaId,
         'cinemaName': hall.cinemaName,
-        'hallId': hall.hallId,
+        'hallId': _extractHallNumber(hall.hallName),
+        'hallDocId': hall.hallId,
         'hallName': hall.hallName,
         'startTime': Timestamp.fromDate(start),
         'endTime': Timestamp.fromDate(end),
@@ -529,6 +534,14 @@ class AdminRepository {
       batch.delete(doc.reference);
     }
     await batch.commit();
+  }
+
+  int _extractHallNumber(String source) {
+    final match = RegExp(r'(\d+)').firstMatch(source);
+    if (match != null) {
+      return int.tryParse(match.group(1) ?? '') ?? 1;
+    }
+    return 1;
   }
 
   int _parseDuration(String durationStr) {
