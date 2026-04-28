@@ -7,7 +7,7 @@ class ScheduleCellsService {
 
   final FirebaseFirestore _firestore;
 
-  static const int defaultSlots = 3;
+  static const int defaultSlots = 15;
 
   String dateKey(DateTime date) => '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
 
@@ -16,14 +16,16 @@ class ScheduleCellsService {
     final col = _firestore.collection('schedule_cells');
 
     final existing = await col.where('dateKey', isEqualTo: key).get();
-    if (existing.docs.isNotEmpty) return;
+    final existingIds = existing.docs.map((d) => d.id).toSet();
 
     final batch = _firestore.batch();
     for (final hall in halls) {
       for (int i = 0; i < defaultSlots; i++) {
         final docId = '${key}_${hall.cinemaId}_${hall.hallId}_$i';
+        if (existingIds.contains(docId)) continue;
         final ref = col.doc(docId);
-        final initialTime = DateTime(date.year, date.month, date.day, 10 + i, 0);
+        final dayStart = DateTime(date.year, date.month, date.day);
+        final initialTime = dayStart.add(Duration(hours: 10 + i));
         batch.set(ref, {
           'dateKey': key,
           'cinemaId': hall.cinemaId,
