@@ -105,6 +105,13 @@ class _SeatSelectionScreenState extends State<SeatSelectionScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF0F0F0F) : const Color(0xFFF4F4F4);
+    final appBarColor = isDark ? const Color(0xFF151515) : Colors.white;
+    final appBarText = isDark ? Colors.white : const Color(0xFF1A1A1A);
+    final bottomPanelColor = isDark ? const Color(0xFF151515) : Colors.white;
+    final bottomShadow = isDark ? Colors.black54 : const Color(0x22000000);
+
     final bottomInset = MediaQuery.of(context).padding.bottom;
     final hasBottomPanel = _bottomPanelMode != _BottomPanelMode.hidden;
     final bottomOffset = hasBottomPanel ? 210 + bottomInset : 0.0;
@@ -125,12 +132,12 @@ class _SeatSelectionScreenState extends State<SeatSelectionScreen> {
             : null;
 
         return Scaffold(
-          backgroundColor: const Color(0xFF0F0F0F),
+          backgroundColor: bgColor,
           appBar: AppBar(
             title: const Text('Выбор мест'),
             centerTitle: true,
-            backgroundColor: const Color(0xFF151515),
-            foregroundColor: Colors.white,
+            backgroundColor: appBarColor,
+            foregroundColor: appBarText,
           ),
           body: Stack(
             children: [
@@ -156,10 +163,10 @@ class _SeatSelectionScreenState extends State<SeatSelectionScreen> {
                   alignment: Alignment.bottomCenter,
                   child: Container(
                     padding: EdgeInsets.fromLTRB(14, 10, 14, 10 + bottomInset),
-                    decoration: const BoxDecoration(
-                      color: Color(0xFF151515),
-                      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-                      boxShadow: [BoxShadow(color: Colors.black54, blurRadius: 14, offset: Offset(0, -5))],
+                    decoration: BoxDecoration(
+                      color: bottomPanelColor,
+                      borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+                      boxShadow: [BoxShadow(color: bottomShadow, blurRadius: 14, offset: const Offset(0, -5))],
                     ),
                     child: SafeArea(
                       top: false,
