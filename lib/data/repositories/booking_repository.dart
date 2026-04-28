@@ -251,8 +251,8 @@ class BookingRepository {
   int _vipPrice(Map<String, dynamic> prices) => _readPrice(prices['vip'], 5000);
 
   int _readPrice(dynamic value, int fallback) {
-    if (value is int && value > 0) return value;
-    if (value is num && value > 0) return value.toInt();
+    if (value is int && value >= 0) return value;
+    if (value is num && value >= 0) return value.toInt();
     return fallback;
   }
 

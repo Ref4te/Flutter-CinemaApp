@@ -485,7 +485,8 @@ class _ScheduleManagementTabState extends State<_ScheduleManagementTab> {
                 child: FilledButton.icon(
                   onPressed: _selectedMovie == null || _saving || _conflictCellIds.isNotEmpty ? null : _saveAll,
                   icon: const Icon(Icons.save),
-                  label: const Text('Сохранить'),
+                  label: const Text('Сохранить расписание'),
+                  style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(44)),
                 ),
               ),
             ],
@@ -720,7 +721,7 @@ class _ScheduleManagementTabState extends State<_ScheduleManagementTab> {
   SessionPrices _readPrices() {
     int parse(TextEditingController controller, int fallback) {
       final value = int.tryParse(controller.text.trim());
-      if (value == null || value <= 0) return fallback;
+      if (value == null || value < 0) return fallback;
       return value;
     }
 
