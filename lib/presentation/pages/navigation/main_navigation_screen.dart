@@ -9,7 +9,9 @@ import '../tickets/tickets_page.dart';
 import '../profile/profile_page.dart';
 
 class MainNavigationScreen extends StatefulWidget {
-  const MainNavigationScreen({super.key});
+  const MainNavigationScreen({super.key, this.initialIndex = 0});
+
+  final int initialIndex;
 
   @override
   State<MainNavigationScreen> createState() =>
@@ -18,7 +20,13 @@ class MainNavigationScreen extends StatefulWidget {
 
 class _MainNavigationScreenState
     extends State<MainNavigationScreen> {
-  int currentIndex = 0;
+  late int currentIndex;
+
+  @override
+  void initState() {
+    super.initState();
+    currentIndex = widget.initialIndex.clamp(0, pages.length - 1);
+  }
 
   final pages = const [
     HomePage(),

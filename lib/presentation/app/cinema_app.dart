@@ -1,13 +1,27 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
+import '../../core/services/local_notification_service.dart';
 import '../../core/settings/app_settings.dart';
 import '../../core/theme/app_theme.dart';
 import '../pages/auth/login_page.dart';
 import '../pages/navigation/main_navigation_screen.dart';
 
-class CinemaApp extends StatelessWidget {
+class CinemaApp extends StatefulWidget {
   const CinemaApp({super.key});
+
+  @override
+  State<CinemaApp> createState() => _CinemaAppState();
+}
+
+class _CinemaAppState extends State<CinemaApp> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      LocalNotificationService.instance.openPendingDestinationIfNeeded();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -15,6 +29,7 @@ class CinemaApp extends StatelessWidget {
       valueListenable: AppSettings.isDarkTheme,
       builder: (context, isDark, child) {
         return MaterialApp(
+          navigatorKey: LocalNotificationService.navigatorKey,
           debugShowCheckedModeBanner: false,
           title: 'Cinema Booking',
           theme: AppTheme.light,
