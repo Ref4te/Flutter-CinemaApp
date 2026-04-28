@@ -487,34 +487,30 @@ class _ScheduleManagementTabState extends State<_ScheduleManagementTab> {
     );
     if (picked == null) return;
 
-    final pivotTime = _roundTo10(DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day, picked.hour, picked.minute));
-    final gap = Duration(minutes: duration + 20);
+    final newTime = _roundTo10(
+      DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day, picked.hour, picked.minute),
+    );
 
     final snapshot = _grid.map((e) => e).toList();
     _undoStack.add(snapshot);
 
-    final sorted = hallCells.toList()..sort((a, b) => a.slotIndex.compareTo(b.slotIndex));
-    final pivotIndex = sorted.indexWhere((e) => e.id == pivot.id);
-    if (pivotIndex < 0) return;
+    final updated = pivot.copyWith(
+      startTime: newTime,
+      movieId: _selectedMovie!.id,
+      movieTitle: _selectedMovie!.title,
+    );
 
-    final updated = <String, ScheduleCellItem>{};
     final conflicts = <String>{};
-
-    DateTime t = pivotTime;
-    for (int i = pivotIndex; i < sorted.length; i++) {
-      final c = sorted[i];
-      if (i != pivotIndex) {
-        t = _roundTo10(t.add(gap));
-      }
-      if (c.movieId != null && c.movieId != _selectedMovie!.id) {
-        conflicts.add(c.id);
+    final otherCells = hallCells.where((e) => e.id != pivot.id);
+    for (final other in otherCells) {
+      if (other.movieId != null && other.movieId != _selectedMovie!.id && other.startTime.isAtSameMomentAs(newTime)) {
+        conflicts.add(pivot.id);
         break;
       }
-      updated[c.id] = c.copyWith(startTime: t, movieId: _selectedMovie!.id, movieTitle: _selectedMovie!.title);
     }
 
     setState(() {
-      _grid = _grid.map((cell) => updated[cell.id] ?? cell).toList();
+      _grid = _grid.map((cell) => cell.id == updated.id ? updated : cell).toList();
       _conflictCellIds = conflicts;
     });
   }
