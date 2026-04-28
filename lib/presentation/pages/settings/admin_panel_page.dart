@@ -256,6 +256,7 @@ class _ScheduleManagementTabState extends State<_ScheduleManagementTab> {
   bool _saving = false;
   String? _selectedCellId;
   Set<String> _conflictCellIds = <String>{};
+  final List<List<ScheduleCellItem>> _undoStack = <List<ScheduleCellItem>>[];
 
   @override
   void initState() {
@@ -379,7 +380,16 @@ class _ScheduleManagementTabState extends State<_ScheduleManagementTab> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('$cinemaName • $hallName', style: const TextStyle(fontWeight: FontWeight.w600)),
+                        Row(
+                          children: [
+                            Expanded(child: Text('$cinemaName • $hallName', style: const TextStyle(fontWeight: FontWeight.w600))),
+                            IconButton(
+                              onPressed: () => _addSlotForHall(hallCells),
+                              icon: const Icon(Icons.add_circle_outline),
+                              tooltip: 'Добавить ячейку',
+                            ),
+                          ],
+                        ),
                         const SizedBox(height: 8),
                         Wrap(
                           spacing: 8,
@@ -425,6 +435,12 @@ class _ScheduleManagementTabState extends State<_ScheduleManagementTab> {
           const SizedBox(height: 10),
           Row(
             children: [
+              OutlinedButton.icon(
+                onPressed: _undoStack.isEmpty ? null : _undo,
+                icon: const Icon(Icons.undo),
+                label: const Text('Отменить'),
+              ),
+              const SizedBox(width: 8),
               Expanded(
                 child: FilledButton.icon(
                   onPressed: _selectedMovie == null || _saving || _conflictCellIds.isNotEmpty ? null : _saveAll,
@@ -466,41 +482,46 @@ class _ScheduleManagementTabState extends State<_ScheduleManagementTab> {
     );
     if (picked == null) return;
 
-    final pivotTime = DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day, picked.hour, picked.minute);
-    final gap = Duration(minutes: duration + 20);
+    final newTime = _roundTo10(DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day, picked.hour, picked.minute));
+    final snapshot = _grid.map((e) => e).toList();
+    _undoStack.add(snapshot);
 
-    final sorted = hallCells.toList()..sort((a, b) => a.slotIndex.compareTo(b.slotIndex));
-    final pivotIndex = sorted.indexWhere((e) => e.id == pivot.id);
-    if (pivotIndex < 0) return;
+    final updated = pivot.copyWith(
+      startTime: newTime,
+      movieId: _selectedMovie!.id,
+      movieTitle: _selectedMovie!.title,
+    );
 
-    DateTime t = _roundTo10(pivotTime);
-    final updated = <String, ScheduleCellItem>{};
+    final sorted = hallCells.toList()..sort((a, b) => a.startTime.compareTo(b.startTime));
+    final first = sorted.isNotEmpty ? sorted.first : null;
     final conflicts = <String>{};
-
-    for (int i = pivotIndex; i < sorted.length; i++) {
-      final c = sorted[i];
-      if (i != pivotIndex) t = _roundTo10(t.add(gap));
-      if (c.movieId != null && c.movieId != _selectedMovie!.id) {
-        conflicts.add(c.id);
-        break;
-      }
-      updated[c.id] = c.copyWith(startTime: t, movieId: _selectedMovie!.id, movieTitle: _selectedMovie!.title);
-    }
-
-    t = _roundTo10(pivotTime);
-    for (int i = pivotIndex - 1; i >= 0; i--) {
-      final c = sorted[i];
-      t = _roundTo10(t.subtract(gap));
-      if (c.movieId != null && c.movieId != _selectedMovie!.id) {
-        conflicts.add(c.id);
-        break;
-      }
-      updated[c.id] = c.copyWith(startTime: t, movieId: _selectedMovie!.id, movieTitle: _selectedMovie!.title);
+    if (first != null && first.id != updated.id && updated.startTime.isBefore(first.startTime)) {
+      conflicts.add(updated.id);
     }
 
     setState(() {
-      _grid = _grid.map((cell) => updated[cell.id] ?? cell).toList();
+      _grid = _grid.map((cell) => cell.id == updated.id ? updated : cell).toList();
       _conflictCellIds = conflicts;
+    });
+  }
+
+  Future<void> _addSlotForHall(List<ScheduleCellItem> hallCells) async {
+    if (hallCells.isEmpty) return;
+    final first = hallCells.first;
+    final hall = _halls.firstWhere((h) => h.ref.cinemaId == first.cinemaId && h.ref.hallId == first.hallId).ref;
+    await _cellsService.addSlotForHall(date: _selectedDate, hall: hall);
+    final reloaded = await _cellsService.loadGrid(_selectedDate);
+    if (!mounted) return;
+    setState(() => _grid = reloaded);
+  }
+
+  void _undo() {
+    if (_undoStack.isEmpty) return;
+    final previous = _undoStack.removeLast();
+    setState(() {
+      _grid = previous;
+      _conflictCellIds = <String>{};
+      _selectedCellId = null;
     });
   }
 

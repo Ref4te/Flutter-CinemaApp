@@ -7,7 +7,7 @@ class ScheduleCellsService {
 
   final FirebaseFirestore _firestore;
 
-  static const int defaultSlots = 15;
+  static const int defaultSlots = 6;
 
   String dateKey(DateTime date) => '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
 
@@ -41,6 +41,45 @@ class ScheduleCellsService {
       }
     }
     await batch.commit();
+  }
+
+
+  Future<void> addSlotForHall({
+    required DateTime date,
+    required HallRef hall,
+  }) async {
+    final key = dateKey(date);
+    final hallCells = await _firestore
+        .collection('schedule_cells')
+        .where('dateKey', isEqualTo: key)
+        .where('cinemaId', isEqualTo: hall.cinemaId)
+        .where('hallId', isEqualTo: hall.hallId)
+        .get();
+
+    int nextIndex = 0;
+    DateTime nextTime = DateTime(date.year, date.month, date.day, 10, 0);
+
+    if (hallCells.docs.isNotEmpty) {
+      final items = hallCells.docs.map((d) => ScheduleCellItem.fromDoc(d)).toList()
+        ..sort((a, b) => a.slotIndex.compareTo(b.slotIndex));
+      final last = items.last;
+      nextIndex = last.slotIndex + 1;
+      nextTime = last.startTime.add(const Duration(hours: 1));
+    }
+
+    final docId = '${key}_${hall.cinemaId}_${hall.hallId}_$nextIndex';
+    await _firestore.collection('schedule_cells').doc(docId).set({
+      'dateKey': key,
+      'cinemaId': hall.cinemaId,
+      'cinemaName': hall.cinemaName,
+      'hallId': hall.hallId,
+      'hallName': hall.hallName,
+      'slotIndex': nextIndex,
+      'startTime': Timestamp.fromDate(nextTime),
+      'movieId': null,
+      'movieTitle': null,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
   }
 
   Future<List<ScheduleCellItem>> loadGrid(DateTime date) async {
