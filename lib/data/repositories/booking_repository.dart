@@ -25,7 +25,7 @@ class BookingRepository {
 
     final homeData = await _tmdbRepository.loadHomeData();
     final movies = _buildMovieSlots(homeData.movies);
-    if (movies.isEmpty) return;
+    if (movies.length < 24) return;
 
     final random = Random();
     final now = DateTime.now();
@@ -39,12 +39,15 @@ class BookingRepository {
         baseDate.year,
         baseDate.month,
         baseDate.day,
-      ).add(const Duration(days: 1, hours: 1));
+      ).add(const Duration(days: 1));
 
-      for (final cinema in _cinemas) {
+      for (int cinemaIndex = 0; cinemaIndex < _cinemas.length; cinemaIndex++) {
+        final cinema = _cinemas[cinemaIndex];
+        final cinemaMovies = movies.skip(cinemaIndex * 8).take(8).toList();
+
         for (int hallId = 1; hallId <= cinema.halls.length; hallId++) {
           final hall = cinema.halls[hallId - 1];
-          final hallMovies = movies
+          final hallMovies = cinemaMovies
               .where((movie) => hall.canPlay(movie.popularity))
               .toList()
             ..shuffle(random);
@@ -61,20 +64,32 @@ class BookingRepository {
 
             final slotPopularity = _timePopularity(currentTime.hour);
             if (hallMovies.isEmpty) break;
+            final timeFilteredMovies = hallMovies.where((movie) {
+              if (movie.isKids && currentTime.hour >= 17) return false;
+              if (movie.isAdult && currentTime.hour < 22) return false;
+              return true;
+            }).toList();
+
+            if (timeFilteredMovies.isEmpty) {
+              currentTime = currentTime.add(const Duration(minutes: 20));
+              continue;
+            }
 
             _MovieSlot pickMovie({required bool strictPopularity}) {
-              for (int i = 0; i < hallMovies.length; i++) {
-                final candidate = hallMovies[(hallCursor + i) % hallMovies.length];
+              for (int i = 0; i < timeFilteredMovies.length; i++) {
+                final candidate = timeFilteredMovies[
+                    (hallCursor + i) % timeFilteredMovies.length];
                 final matchesPopularity =
                     !strictPopularity || candidate.popularity == slotPopularity;
                 final isNotRepeat = candidate.tmdbId != lastMovieId;
                 if (matchesPopularity && isNotRepeat) {
-                  hallCursor = (hallCursor + i + 1) % hallMovies.length;
+                  hallCursor = (hallCursor + i + 1) % timeFilteredMovies.length;
                   return candidate;
                 }
               }
-              final fallback = hallMovies[hallCursor % hallMovies.length];
-              hallCursor = (hallCursor + 1) % hallMovies.length;
+              final fallback =
+                  timeFilteredMovies[hallCursor % timeFilteredMovies.length];
+              hallCursor = (hallCursor + 1) % timeFilteredMovies.length;
               return fallback;
             }
 
@@ -254,14 +269,32 @@ class BookingRepository {
                 : movie.rating >= 6.0
                     ? 2
                     : 3,
+            isKids: _isKidsMovie(movie),
+            isAdult: movie.isAdult,
           ),
         )
         .where((slot) => slot.runtimeMinutes > 30)
         .toList()
       ..sort((a, b) => a.popularity.compareTo(b.popularity));
 
-    if (slots.isNotEmpty) return slots;
-    return _fallbackMovies;
+    final unique = <int, _MovieSlot>{
+      for (final movie in slots) movie.tmdbId: movie,
+    };
+    for (final fallback in _fallbackMovies) {
+      unique.putIfAbsent(fallback.tmdbId, () => fallback);
+    }
+    return unique.values.take(24).toList();
+  }
+
+  bool _isKidsMovie(MovieItem movie) {
+    final text = '${movie.category} ${movie.title} ${movie.description}'
+        .toLowerCase();
+    return text.contains('animation') ||
+        text.contains('family') ||
+        text.contains('kids') ||
+        text.contains('дет') ||
+        text.contains('мульт') ||
+        text.contains('семейн');
   }
 
   int _timePopularity(int hour) {
@@ -442,12 +475,16 @@ class _MovieSlot {
     required this.title,
     required this.runtimeMinutes,
     required this.popularity,
+    required this.isKids,
+    required this.isAdult,
   });
 
   final int tmdbId;
   final String title;
   final int runtimeMinutes;
   final int popularity;
+  final bool isKids;
+  final bool isAdult;
 }
 
 const List<_Cinema> _cinemas = [
@@ -457,6 +494,7 @@ const List<_Cinema> _cinemas = [
       _Hall(name: 'IMAX', type: _HallType.imax, rows: 12, seatsPerRow: 14),
       _Hall(name: 'Зал VIP', type: _HallType.vip, rows: 6, seatsPerRow: 8),
       _Hall(name: 'Комфорт', type: _HallType.comfort, rows: 10, seatsPerRow: 12),
+      _Hall(name: 'Зал 4', type: _HallType.standard, rows: 10, seatsPerRow: 12),
     ],
   ),
   _Cinema(
@@ -465,6 +503,7 @@ const List<_Cinema> _cinemas = [
       _Hall(name: 'Dolby Atmos', type: _HallType.imax, rows: 11, seatsPerRow: 13),
       _Hall(name: 'Комфорт', type: _HallType.comfort, rows: 8, seatsPerRow: 10),
       _Hall(name: 'Зал 3', type: _HallType.standard, rows: 10, seatsPerRow: 12),
+      _Hall(name: 'Зал 4', type: _HallType.standard, rows: 10, seatsPerRow: 12),
     ],
   ),
   _Cinema(
@@ -473,17 +512,34 @@ const List<_Cinema> _cinemas = [
       _Hall(name: '4DX', type: _HallType.vip, rows: 8, seatsPerRow: 10),
       _Hall(name: 'Premium', type: _HallType.comfort, rows: 7, seatsPerRow: 9),
       _Hall(name: 'Зал 3', type: _HallType.standard, rows: 10, seatsPerRow: 12),
+      _Hall(name: 'Зал 4', type: _HallType.standard, rows: 10, seatsPerRow: 12),
     ],
   ),
 ];
 
 const List<_MovieSlot> _fallbackMovies = [
-  _MovieSlot(tmdbId: 550, title: 'Бойцовский клуб', runtimeMinutes: 139, popularity: 1),
-  _MovieSlot(tmdbId: 27205, title: 'Начало', runtimeMinutes: 148, popularity: 1),
-  _MovieSlot(tmdbId: 157336, title: 'Интерстеллар', runtimeMinutes: 169, popularity: 1),
-  _MovieSlot(tmdbId: 299534, title: 'Мстители: Финал', runtimeMinutes: 181, popularity: 1),
-  _MovieSlot(tmdbId: 76341, title: 'Безумный Макс', runtimeMinutes: 120, popularity: 2),
-  _MovieSlot(tmdbId: 475557, title: 'Джокер', runtimeMinutes: 122, popularity: 2),
-  _MovieSlot(tmdbId: 496243, title: 'Паразиты', runtimeMinutes: 132, popularity: 2),
-  _MovieSlot(tmdbId: 13, title: 'Форрест Гамп', runtimeMinutes: 142, popularity: 3),
+  _MovieSlot(tmdbId: 550, title: 'Бойцовский клуб', runtimeMinutes: 139, popularity: 1, isKids: false, isAdult: false),
+  _MovieSlot(tmdbId: 27205, title: 'Начало', runtimeMinutes: 148, popularity: 1, isKids: false, isAdult: false),
+  _MovieSlot(tmdbId: 157336, title: 'Интерстеллар', runtimeMinutes: 169, popularity: 1, isKids: false, isAdult: false),
+  _MovieSlot(tmdbId: 299534, title: 'Мстители: Финал', runtimeMinutes: 181, popularity: 1, isKids: false, isAdult: false),
+  _MovieSlot(tmdbId: 76341, title: 'Безумный Макс', runtimeMinutes: 120, popularity: 2, isKids: false, isAdult: true),
+  _MovieSlot(tmdbId: 475557, title: 'Джокер', runtimeMinutes: 122, popularity: 2, isKids: false, isAdult: true),
+  _MovieSlot(tmdbId: 496243, title: 'Паразиты', runtimeMinutes: 132, popularity: 2, isKids: false, isAdult: true),
+  _MovieSlot(tmdbId: 13, title: 'Форрест Гамп', runtimeMinutes: 142, popularity: 3, isKids: false, isAdult: false),
+  _MovieSlot(tmdbId: 862, title: 'История игрушек', runtimeMinutes: 81, popularity: 2, isKids: true, isAdult: false),
+  _MovieSlot(tmdbId: 12, title: 'В поисках Немо', runtimeMinutes: 100, popularity: 2, isKids: true, isAdult: false),
+  _MovieSlot(tmdbId: 278, title: 'Побег из Шоушенка', runtimeMinutes: 142, popularity: 1, isKids: false, isAdult: false),
+  _MovieSlot(tmdbId: 424, title: 'Список Шиндлера', runtimeMinutes: 195, popularity: 1, isKids: false, isAdult: true),
+  _MovieSlot(tmdbId: 680, title: 'Криминальное чтиво', runtimeMinutes: 154, popularity: 1, isKids: false, isAdult: true),
+  _MovieSlot(tmdbId: 155, title: 'Темный рыцарь', runtimeMinutes: 152, popularity: 1, isKids: false, isAdult: false),
+  _MovieSlot(tmdbId: 238, title: 'Крёстный отец', runtimeMinutes: 175, popularity: 1, isKids: false, isAdult: true),
+  _MovieSlot(tmdbId: 497, title: 'Зеленая миля', runtimeMinutes: 189, popularity: 1, isKids: false, isAdult: false),
+  _MovieSlot(tmdbId: 122, title: 'Властелин колец', runtimeMinutes: 178, popularity: 1, isKids: false, isAdult: false),
+  _MovieSlot(tmdbId: 603, title: 'Матрица', runtimeMinutes: 136, popularity: 1, isKids: false, isAdult: true),
+  _MovieSlot(tmdbId: 673, title: 'Гарри Поттер', runtimeMinutes: 152, popularity: 2, isKids: true, isAdult: false),
+  _MovieSlot(tmdbId: 120, title: 'ВК: Братство кольца', runtimeMinutes: 178, popularity: 1, isKids: false, isAdult: false),
+  _MovieSlot(tmdbId: 11, title: 'Звездные войны', runtimeMinutes: 121, popularity: 1, isKids: false, isAdult: false),
+  _MovieSlot(tmdbId: 1891, title: 'Империя наносит ответный удар', runtimeMinutes: 124, popularity: 1, isKids: false, isAdult: false),
+  _MovieSlot(tmdbId: 1892, title: 'Возвращение джедая', runtimeMinutes: 131, popularity: 1, isKids: false, isAdult: false),
+  _MovieSlot(tmdbId: 10195, title: 'Тор', runtimeMinutes: 115, popularity: 2, isKids: false, isAdult: false),
 ];

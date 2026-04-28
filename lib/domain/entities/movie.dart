@@ -10,6 +10,7 @@ class MovieItem {
   final String duration;
   final double rating;
   final String description;
+  final bool isAdult;
 
   const MovieItem({
     required this.id,
@@ -21,6 +22,7 @@ class MovieItem {
     required this.duration,
     required this.rating,
     required this.description,
+    required this.isAdult,
   });
 
   factory MovieItem.fromTmdb(
@@ -60,6 +62,7 @@ class MovieItem {
       description: (json['overview'] as String?)?.trim().isNotEmpty == true
           ? (json['overview'] as String).trim()
           : 'Описание пока недоступно.',
+      isAdult: (json['adult'] as bool?) ?? false,
     );
   }
 
