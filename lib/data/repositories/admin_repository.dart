@@ -329,6 +329,34 @@ class AdminRepository {
     await batch.commit();
   }
 
+
+  Future<void> clearMovieScheduleForDate({
+    required int movieId,
+    required DateTime date,
+  }) async {
+    _ensureAdmin();
+    final dayStart = DateTime(date.year, date.month, date.day);
+    final dayEnd = dayStart.add(const Duration(days: 1));
+
+    final sessions = await _firestore.collection('sessions').where('movieId', isEqualTo: movieId).get();
+    final global = await _firestore.collection('global_schedule').where('movieId', isEqualTo: movieId).get();
+
+    final batch = _firestore.batch();
+    for (final doc in sessions.docs) {
+      final start = (doc.data()['startTime'] as Timestamp?)?.toDate();
+      if (start != null && !start.isBefore(dayStart) && start.isBefore(dayEnd)) {
+        batch.delete(doc.reference);
+      }
+    }
+    for (final doc in global.docs) {
+      final start = (doc.data()['startTime'] as Timestamp?)?.toDate();
+      if (start != null && !start.isBefore(dayStart) && start.isBefore(dayEnd)) {
+        batch.delete(doc.reference);
+      }
+    }
+    await batch.commit();
+  }
+
   Future<void> clearMovieSchedule(int movieId) async {
     _ensureAdmin();
 

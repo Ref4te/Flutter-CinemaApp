@@ -480,6 +480,10 @@ class _ScheduleManagementTabState extends State<_ScheduleManagementTab> {
     setState(() => _saving = true);
 
     await _cellsService.saveGrid(_grid);
+    await widget.adminRepository.clearMovieScheduleForDate(
+      movieId: _selectedMovie!.id,
+      date: _selectedDate,
+    );
 
     final selectedCells = _grid.where((c) => c.movieId == _selectedMovie!.id).toList();
     final byHall = <String, List<ScheduleCellItem>>{};
