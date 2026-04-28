@@ -469,27 +469,32 @@ class _ScheduleManagementTabState extends State<_ScheduleManagementTab> {
           const SizedBox(height: 10),
           Row(
             children: [
-              OutlinedButton.icon(
-                onPressed: _saving ? null : _resetSessionsForDate,
-                icon: const Icon(Icons.restart_alt),
-                label: const Text('Обнулить сеансы'),
-              ),
-              const SizedBox(width: 8),
-              OutlinedButton.icon(
-                onPressed: _undoStack.isEmpty ? null : _undo,
-                icon: const Icon(Icons.undo),
-                label: const Text('Отменить'),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _undoStack.isEmpty ? null : _undo,
+                  icon: const Icon(Icons.undo),
+                  label: const Text('Отменить'),
+                ),
               ),
               const SizedBox(width: 8),
               Expanded(
-                child: FilledButton.icon(
-                  onPressed: _selectedMovie == null || _saving || _conflictCellIds.isNotEmpty ? null : _saveAll,
-                  icon: const Icon(Icons.save),
-                  label: const Text('Сохранить расписание'),
-                  style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(44)),
+                child: OutlinedButton.icon(
+                  onPressed: _saving ? null : _resetSessionsForDate,
+                  icon: const Icon(Icons.restart_alt),
+                  label: const Text('Сброс'),
                 ),
               ),
             ],
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: _selectedMovie == null || _saving || _conflictCellIds.isNotEmpty ? null : _saveAll,
+              icon: const Icon(Icons.save),
+              label: const Text('Сохранить расписание'),
+              style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(48)),
+            ),
           ),
         ],
       ),
