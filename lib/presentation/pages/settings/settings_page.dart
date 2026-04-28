@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/localization/app_strings.dart';
+import '../../../core/services/local_notification_service.dart';
 import '../../../core/settings/app_settings.dart';
 
 class SettingsPage extends StatelessWidget {
@@ -22,7 +23,7 @@ class SettingsPage extends StatelessWidget {
                     title: 'Русский',
                     selected: language == 'Русский',
                     onTap: () {
-                      AppSettings.language.value = 'Русский';
+                      AppSettings.setLanguage('Русский');
                       Navigator.pop(context);
                     },
                   ),
@@ -30,7 +31,7 @@ class SettingsPage extends StatelessWidget {
                     title: 'Қазақша',
                     selected: language == 'Қазақша',
                     onTap: () {
-                      AppSettings.language.value = 'Қазақша';
+                      AppSettings.setLanguage('Қазақша');
                       Navigator.pop(context);
                     },
                   ),
@@ -38,7 +39,7 @@ class SettingsPage extends StatelessWidget {
                     title: 'English',
                     selected: language == 'English',
                     onTap: () {
-                      AppSettings.language.value = 'English';
+                      AppSettings.setLanguage('English');
                       Navigator.pop(context);
                     },
                   ),
@@ -104,8 +105,11 @@ class SettingsPage extends StatelessWidget {
                             : AppStrings.t('disabled'),
                       ),
                       value: enabled,
-                      onChanged: (value) {
-                        AppSettings.notificationsEnabled.value = value;
+                      onChanged: (value) async {
+                        await AppSettings.setNotificationsEnabled(value);
+                        if (!value) {
+                          await LocalNotificationService.instance.cancelAllReminders();
+                        }
                       },
                     ),
                   );
@@ -129,7 +133,7 @@ class SettingsPage extends StatelessWidget {
                       ),
                       value: isDark,
                       onChanged: (value) {
-                        AppSettings.isDarkTheme.value = value;
+                        AppSettings.setDarkTheme(value);
                       },
                     ),
                   );

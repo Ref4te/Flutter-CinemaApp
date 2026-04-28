@@ -4,6 +4,7 @@ import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 
+import '../settings/app_settings.dart';
 import '../../presentation/pages/navigation/main_navigation_screen.dart';
 
 class LocalNotificationService {
@@ -50,13 +51,21 @@ class LocalNotificationService {
     _openTickets();
   }
 
+
+  Future<void> cancelAllReminders() async {
+    await _plugin.cancelAll();
+  }
   Future<void> scheduleTicketReminder({
     required int ticketId,
     required String movieTitle,
     required DateTime sessionStart,
     required String cinemaAddress,
   }) async {
-    final scheduledAt = sessionStart.subtract(const Duration(hours: 1));
+    if (!AppSettings.notificationsEnabled.value) {
+      return;
+    }
+
+    final scheduledAt = DateTime.now().add(const Duration(seconds: 10));
     if (scheduledAt.isBefore(DateTime.now())) {
       return;
     }
