@@ -7,7 +7,7 @@ class ScheduleCellsService {
 
   final FirebaseFirestore _firestore;
 
-  static const int defaultSlots = 6;
+  static const int defaultSlots = 3;
 
   String dateKey(DateTime date) => '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
 

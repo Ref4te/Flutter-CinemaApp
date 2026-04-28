@@ -254,6 +254,8 @@ class _ScheduleManagementTabState extends State<_ScheduleManagementTab> {
 
   bool _loading = true;
   bool _saving = false;
+  String? _selectedCellId;
+  Set<String> _conflictCellIds = <String>{};
 
   @override
   void initState() {
@@ -347,6 +349,8 @@ class _ScheduleManagementTabState extends State<_ScheduleManagementTab> {
                 _dateOffset = offset;
                 _selectedDate = nextDate;
                 _loading = true;
+                _selectedCellId = null;
+                _conflictCellIds = <String>{};
               });
               await _cellsService.ensureGrid(date: nextDate, halls: _halls.map((e) => e.ref).toList());
               final grid = await _cellsService.loadGrid(nextDate);
@@ -382,6 +386,8 @@ class _ScheduleManagementTabState extends State<_ScheduleManagementTab> {
                           runSpacing: 8,
                           children: hallCells.map((cell) {
                             final state = _cellState(cell);
+                            final isSelected = _selectedCellId == cell.id;
+                            final hasConflict = _conflictCellIds.contains(cell.id);
                             return GestureDetector(
                               onTap: _selectedMovie == null ? null : () => _onCellTap(cell, hallCells, duration),
                               child: Container(
@@ -390,14 +396,19 @@ class _ScheduleManagementTabState extends State<_ScheduleManagementTab> {
                                 decoration: BoxDecoration(
                                   borderRadius: BorderRadius.circular(10),
                                   color: state.color,
-                                  border: Border.all(color: state.border),
+                                  border: Border.all(color: isSelected ? Colors.blue : state.border, width: isSelected ? 2 : 1),
                                 ),
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text(_formatTime(cell.startTime), style: const TextStyle(fontWeight: FontWeight.w600)),
+                                    Text(_formatTime(cell.startTime), style: TextStyle(fontWeight: FontWeight.w600, color: hasConflict ? Colors.red : state.textColor)),
                                     const SizedBox(height: 4),
-                                    Text(cell.movieTitle ?? 'Свободно', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11)),
+                                    Text(
+                                      hasConflict ? 'Конфликт' : (cell.movieTitle ?? 'Свободно'),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(fontSize: 11, color: hasConflict ? Colors.red : state.textColor),
+                                    ),
                                   ],
                                 ),
                               ),
@@ -416,7 +427,7 @@ class _ScheduleManagementTabState extends State<_ScheduleManagementTab> {
             children: [
               Expanded(
                 child: FilledButton.icon(
-                  onPressed: _selectedMovie == null || _saving ? null : _saveAll,
+                  onPressed: _selectedMovie == null || _saving || _conflictCellIds.isNotEmpty ? null : _saveAll,
                   icon: const Icon(Icons.save),
                   label: const Text('Сохранить'),
                 ),
@@ -429,16 +440,25 @@ class _ScheduleManagementTabState extends State<_ScheduleManagementTab> {
   }
 
   _CellState _cellState(ScheduleCellItem cell) {
-    if (cell.movieId == null) return _CellState(Colors.grey.shade300, Colors.grey.shade500);
+    if (cell.movieId == null) return _CellState(Colors.grey.shade300, Colors.grey.shade500, Colors.black);
     if (_selectedMovie != null && cell.movieId == _selectedMovie!.id) {
-      return _CellState(Colors.green.withOpacity(0.25), Colors.green);
+      return _CellState(Colors.green.withOpacity(0.25), Colors.green, Colors.black);
     }
-    return _CellState(Colors.red.withOpacity(0.25), Colors.red);
+    return _CellState(Colors.red.withOpacity(0.25), Colors.red, Colors.red.shade900);
   }
 
   Future<void> _onCellTap(ScheduleCellItem pivot, List<ScheduleCellItem> hallCells, int duration) async {
     if (_selectedMovie == null) return;
-    if (pivot.movieId != null && pivot.movieId != _selectedMovie!.id) return;
+
+    setState(() {
+      _selectedCellId = pivot.id;
+      _conflictCellIds = <String>{};
+    });
+
+    if (pivot.movieId != null && pivot.movieId != _selectedMovie!.id) {
+      setState(() => _conflictCellIds = {pivot.id});
+      return;
+    }
 
     final picked = await showTimePicker(
       context: context,
@@ -455,10 +475,15 @@ class _ScheduleManagementTabState extends State<_ScheduleManagementTab> {
 
     DateTime t = _roundTo10(pivotTime);
     final updated = <String, ScheduleCellItem>{};
+    final conflicts = <String>{};
+
     for (int i = pivotIndex; i < sorted.length; i++) {
       final c = sorted[i];
       if (i != pivotIndex) t = _roundTo10(t.add(gap));
-      if (c.movieId != null && c.movieId != _selectedMovie!.id) break;
+      if (c.movieId != null && c.movieId != _selectedMovie!.id) {
+        conflicts.add(c.id);
+        break;
+      }
       updated[c.id] = c.copyWith(startTime: t, movieId: _selectedMovie!.id, movieTitle: _selectedMovie!.title);
     }
 
@@ -466,12 +491,16 @@ class _ScheduleManagementTabState extends State<_ScheduleManagementTab> {
     for (int i = pivotIndex - 1; i >= 0; i--) {
       final c = sorted[i];
       t = _roundTo10(t.subtract(gap));
-      if (c.movieId != null && c.movieId != _selectedMovie!.id) break;
+      if (c.movieId != null && c.movieId != _selectedMovie!.id) {
+        conflicts.add(c.id);
+        break;
+      }
       updated[c.id] = c.copyWith(startTime: t, movieId: _selectedMovie!.id, movieTitle: _selectedMovie!.title);
     }
 
     setState(() {
       _grid = _grid.map((cell) => updated[cell.id] ?? cell).toList();
+      _conflictCellIds = conflicts;
     });
   }
 
@@ -560,10 +589,11 @@ class _ScheduleManagementTabState extends State<_ScheduleManagementTab> {
 }
 
 class _CellState {
-  const _CellState(this.color, this.border);
+  const _CellState(this.color, this.border, this.textColor);
 
   final Color color;
   final Color border;
+  final Color textColor;
 }
 
 class HallLayoutEditorPage extends StatefulWidget {
