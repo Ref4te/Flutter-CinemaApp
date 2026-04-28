@@ -125,7 +125,13 @@ class _SeatSelectionScreenState extends State<SeatSelectionScreen> {
             : null;
 
         return Scaffold(
-          appBar: AppBar(title: const Text('Выбор мест'), centerTitle: true),
+          backgroundColor: const Color(0xFF0F0F0F),
+          appBar: AppBar(
+            title: const Text('Выбор мест'),
+            centerTitle: true,
+            backgroundColor: const Color(0xFF151515),
+            foregroundColor: Colors.white,
+          ),
           body: Stack(
             children: [
               Padding(

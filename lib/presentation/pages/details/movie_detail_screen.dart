@@ -665,6 +665,12 @@ class _TicketsTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final panelColor = isDark ? const Color(0xFF1A1A1A) : Colors.white;
+    final panelBorder = isDark ? const Color(0xFF353535) : const Color(0xFFE4E4E4);
+    final chipIdle = isDark ? const Color(0xFF232323) : const Color(0xFFF3F3F3);
+    final textColor = isDark ? Colors.white : const Color(0xFF1A1A1A);
+
     final items = <(_TicketDateFilter, String)>[
       (_TicketDateFilter.today, 'Сегодня'),
       (_TicketDateFilter.tomorrow, 'Завтра'),
@@ -687,9 +693,9 @@ class _TicketsTab extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(4),
               decoration: BoxDecoration(
-                color: const Color(0xFF1A1A1A),
+                color: panelColor,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFF353535)),
+                border: Border.all(color: panelBorder),
               ),
               child: Row(
                 children: items.map((item) {
@@ -710,13 +716,13 @@ class _TicketsTab extends StatelessWidget {
                           decoration: BoxDecoration(
                             color: isSelected
                                 ? const Color(0xFFE53935)
-                                : const Color(0xFF232323),
+                                : chipIdle,
                             borderRadius: BorderRadius.circular(9),
                           ),
                           child: Text(
                             title,
                             style: TextStyle(
-                              color: Colors.white,
+                              color: isSelected ? Colors.white : textColor,
                               fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
                             ),
                           ),
@@ -739,9 +745,9 @@ class _TicketsTab extends StatelessWidget {
               return Container(
                 margin: const EdgeInsets.only(bottom: 10),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF1A1A1A),
+                  color: panelColor,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFF2E2E2E)),
+                  border: Border.all(color: panelBorder),
                 ),
                 child: ExpansionTile(
                   initiallyExpanded: true,
