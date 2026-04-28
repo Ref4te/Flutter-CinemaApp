@@ -19,6 +19,9 @@ dependencies:
   flutter_dotenv: ^6.0.0
   youtube_player_flutter: ^9.0.0
   shared_preferences: ^2.2.2
+  flutter_local_notifications: ^17.2.4
+  timezone: ^0.9.4
+  flutter_timezone: ^4.1.1
 
 dev_dependencies:
   flutter_test:

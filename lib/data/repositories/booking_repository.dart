@@ -1,6 +1,7 @@
 import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../../core/services/local_notification_service.dart';
 import '../../domain/entities/session.dart';
 import 'tmdb_repository.dart';
 
@@ -62,6 +63,7 @@ class BookingRepository {
             'startTime': Timestamp.fromDate(currentTime),
             'endTime': Timestamp.fromDate(sessionEndTime),
             'cinemaName': cinema['name'],
+            'cinemaAddress': cinema['address'],
             'hallId': hallId,
             'seats': seats.map((s) => s.toMap()).toList(),
           });
@@ -162,8 +164,11 @@ class BookingRepository {
     if (user == null) return false;
 
     final sessionRef = _firestore.collection('sessions').doc(sessionId);
+    DateTime? startTime;
+    String movieTitle = '';
+    String cinemaAddress = '';
 
-    return _firestore.runTransaction((transaction) async {
+    final success = await _firestore.runTransaction((transaction) async {
       final snapshot = await transaction.get(sessionRef);
       if (!snapshot.exists) return false;
 
@@ -206,6 +211,7 @@ class BookingRepository {
         'movieId': data['movieId'],
         'movieTitle': data['movieTitle'],
         'cinemaName': data['cinemaName'],
+        'cinemaAddress': data['cinemaAddress'] ?? '',
         'hallId': data['hallId'],
         'startTime': data['startTime'],
         'seats': bookedSeatsData,
@@ -213,8 +219,23 @@ class BookingRepository {
         'created_at': FieldValue.serverTimestamp(),
       });
 
+      startTime = (data['startTime'] as Timestamp).toDate();
+      movieTitle = data['movieTitle']?.toString() ?? '';
+      cinemaAddress = data['cinemaAddress']?.toString() ?? data['cinemaName']?.toString() ?? '';
+
       return true;
     });
+
+    if (success && startTime != null) {
+      await LocalNotificationService.instance.scheduleTicketReminder(
+        ticketId: DateTime.now().millisecondsSinceEpoch ~/ 1000,
+        movieTitle: movieTitle,
+        sessionStart: startTime!,
+        cinemaAddress: cinemaAddress,
+      );
+    }
+
+    return success;
   }
 
   int _getPriceByTariff(String tariff) {
