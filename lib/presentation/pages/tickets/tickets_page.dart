@@ -11,6 +11,7 @@ class TicketsPage extends StatelessWidget {
     final bookingRepository = BookingRepository();
 
     return Scaffold(
+      backgroundColor: Colors.white,
       appBar: AppBar(title: const Text('Мои Билеты')),
       body: StreamBuilder<List<Map<String, dynamic>>>(
         stream: bookingRepository.getUserTickets(),
@@ -55,9 +56,16 @@ class TicketsPage extends StatelessWidget {
                 margin: const EdgeInsets.only(bottom: 14),
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF1D1D1D),
+                  color: Colors.white,
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: const Color(0xFF313131)),
+                  border: Border.all(color: const Color(0xFFE6E6E6)),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Color(0x11000000),
+                      blurRadius: 10,
+                      offset: Offset(0, 4),
+                    ),
+                  ],
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -78,7 +86,7 @@ class TicketsPage extends StatelessWidget {
                         ),
                       ],
                     ),
-                    const Divider(height: 24, color: Color(0xFF353535)),
+                    const Divider(height: 24, color: Color(0xFFE8E8E8)),
                     _TicketInfoRow(label: 'Кинотеатр', value: ticket['cinemaName'] ?? '—'),
                     _TicketInfoRow(label: 'Адрес', value: ticket['cinemaAddress'] ?? '—'),
                     _TicketInfoRow(label: 'Зал', value: 'Зал ${ticket['hallId']}'),
@@ -90,7 +98,7 @@ class TicketsPage extends StatelessWidget {
                     const SizedBox(height: 8),
                     const Text(
                       'Места:',
-                      style: TextStyle(color: Color(0xFF9A9A9A), fontWeight: FontWeight.bold),
+                      style: TextStyle(color: Color(0xFF7A7A7A), fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 4),
                     ...bookedSeats
@@ -107,7 +115,7 @@ class TicketsPage extends StatelessWidget {
                           ),
                         )
                         .toList(),
-                    const Divider(height: 20, color: Color(0xFF353535)),
+                    const Divider(height: 20, color: Color(0xFFE8E8E8)),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -150,7 +158,7 @@ class _TicketInfoRow extends StatelessWidget {
             width: 86,
             child: Text(
               label,
-              style: const TextStyle(color: Color(0xFF9A9A9A)),
+              style: const TextStyle(color: Color(0xFF7A7A7A)),
             ),
           ),
           Expanded(child: Text(value, style: TextStyle(color: valueColor))),
