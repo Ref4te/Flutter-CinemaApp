@@ -260,9 +260,7 @@ class BookingRepository {
         .toList()
       ..sort((a, b) => a.popularity.compareTo(b.popularity));
 
-    if (slots.isNotEmpty) {
-      return slots.take(7).toList();
-    }
+    if (slots.isNotEmpty) return slots;
     return _fallbackMovies;
   }
 
