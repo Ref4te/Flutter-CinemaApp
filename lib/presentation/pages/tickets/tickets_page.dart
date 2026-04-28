@@ -9,9 +9,17 @@ class TicketsPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bookingRepository = BookingRepository();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final pageColor = isDark ? const Color(0xFF121212) : Colors.white;
+    final cardColor = isDark ? const Color(0xFF1A1A1A) : Colors.white;
+    final borderColor = isDark ? const Color(0xFF303030) : const Color(0xFFE6E6E6);
+    final dividerColor = isDark ? const Color(0xFF353535) : const Color(0xFFE8E8E8);
+    final seatCellColor = isDark ? const Color(0xFF242424) : const Color(0xFFF7F7F7);
+    final primaryText = isDark ? Colors.white : const Color(0xFF1A1A1A);
+    final secondaryText = isDark ? const Color(0xFFB0B0B0) : const Color(0xFF7A7A7A);
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: pageColor,
       appBar: AppBar(title: const Text('Мои Билеты')),
       body: StreamBuilder<List<Map<String, dynamic>>>(
         stream: bookingRepository.getUserTickets(),
@@ -56,12 +64,12 @@ class TicketsPage extends StatelessWidget {
                 margin: const EdgeInsets.only(bottom: 14),
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: cardColor,
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: const Color(0xFFE6E6E6)),
-                  boxShadow: const [
+                  border: Border.all(color: borderColor),
+                  boxShadow: [
                     BoxShadow(
-                      color: Color(0x11000000),
+                      color: isDark ? const Color(0x22000000) : const Color(0x11000000),
                       blurRadius: 10,
                       offset: Offset(0, 4),
                     ),
@@ -86,7 +94,7 @@ class TicketsPage extends StatelessWidget {
                         ),
                       ],
                     ),
-                    const Divider(height: 24, color: Color(0xFFE8E8E8)),
+                    Divider(height: 24, color: dividerColor),
                     _TicketInfoRow(label: 'Кинотеатр', value: ticket['cinemaName'] ?? '—'),
                     _TicketInfoRow(label: 'Адрес', value: ticket['cinemaAddress'] ?? '—'),
                     _TicketInfoRow(label: 'Зал', value: 'Зал ${ticket['hallId']}'),
@@ -96,9 +104,9 @@ class TicketsPage extends StatelessWidget {
                       valueColor: isPast ? Colors.redAccent : null,
                     ),
                     const SizedBox(height: 8),
-                    const Text(
+                    Text(
                       'Места:',
-                      style: TextStyle(color: Color(0xFF7A7A7A), fontWeight: FontWeight.bold),
+                      style: TextStyle(color: secondaryText, fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 4),
                     ...bookedSeats
@@ -108,7 +116,7 @@ class TicketsPage extends StatelessWidget {
                             child: Container(
                               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                               decoration: BoxDecoration(
-                                color: const Color(0xFFF7F7F7),
+                                color: seatCellColor,
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: Row(
@@ -116,11 +124,11 @@ class TicketsPage extends StatelessWidget {
                                 children: [
                                   Text(
                                     'Ряд ${s['row']} • Место ${s['column']} (${s['type']})',
-                                    style: const TextStyle(color: Color(0xFF1A1A1A)),
+                                    style: TextStyle(color: primaryText),
                                   ),
                                   Text(
                                     '${s['price']} ₸',
-                                    style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A)),
+                                    style: TextStyle(fontWeight: FontWeight.bold, color: primaryText),
                                   ),
                                 ],
                               ),
@@ -128,7 +136,7 @@ class TicketsPage extends StatelessWidget {
                           ),
                         )
                         .toList(),
-                    const Divider(height: 20, color: Color(0xFFE8E8E8)),
+                    Divider(height: 20, color: dividerColor),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [

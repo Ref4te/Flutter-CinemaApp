@@ -780,7 +780,9 @@ class _TicketsTab extends StatelessWidget {
                           },
                           style: OutlinedButton.styleFrom(
                             side: const BorderSide(color: Color(0xFF4A4A4A)),
-                            foregroundColor: Colors.white,
+                            foregroundColor: Theme.of(context).brightness == Brightness.dark
+                                ? Colors.white
+                                : Colors.black,
                           ),
                           child: Text(timeStr),
                         );
