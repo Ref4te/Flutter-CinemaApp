@@ -241,31 +241,45 @@ class _ScheduleManagementTab extends StatefulWidget {
 
 class _ScheduleManagementTabState extends State<_ScheduleManagementTab> {
   MovieItem? _selectedMovie;
-  int? _selectedHour;
+  HallRef? _selectedHall;
+  MovieMeta? _movieMeta;
+
   List<MovieItem> _movies = const [];
-  bool _loadingMovies = true;
+  List<_HallOption> _halls = const [];
+  List<_ScheduleCell> _cells = List.generate(6, (_) => _ScheduleCell.empty());
+  List<ExistingSessionSlot> _existingSlots = const [];
+
+  bool _loading = true;
+  bool _saving = false;
 
   @override
   void initState() {
     super.initState();
-    _loadMovies();
+    _loadInitial();
   }
 
-  Future<void> _loadMovies() async {
-    setState(() => _loadingMovies = true);
+  Future<void> _loadInitial() async {
+    setState(() => _loading = true);
     final movies = await widget.adminRepository.loadMovies();
+    final cinemasSnapshot = await FirebaseFirestore.instance.collection('cinemas').get();
+    final halls = await _loadHallOptions(cinemasSnapshot);
+
     if (!mounted) return;
     setState(() {
       _movies = movies;
-      _loadingMovies = false;
+      _halls = halls;
+      _loading = false;
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_loadingMovies) {
+    if (_loading) {
       return const Center(child: CircularProgressIndicator());
     }
+
+    final duration = _movieMeta?.durationMinutes ?? _parseDuration(_selectedMovie?.duration ?? '2ч 0м');
+    final age = _movieMeta?.ageRating ?? '16+';
 
     return Padding(
       padding: const EdgeInsets.all(16),
@@ -277,147 +291,193 @@ class _ScheduleManagementTabState extends State<_ScheduleManagementTab> {
             isExpanded: true,
             decoration: const InputDecoration(labelText: 'Фильм'),
             items: _movies
-                .map((movie) => DropdownMenuItem<MovieItem>(
-                      value: movie,
-                      child: Text(movie.title, overflow: TextOverflow.ellipsis, maxLines: 1),
-                    ))
+                .map(
+                  (movie) => DropdownMenuItem<MovieItem>(
+                    value: movie,
+                    child: Row(
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(4),
+                          child: SizedBox(
+                            width: 28,
+                            height: 42,
+                            child: movie.imageUrl.isEmpty
+                                ? Container(color: Colors.grey.shade300)
+                                : Image.network(movie.imageUrl, fit: BoxFit.cover),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(child: Text(movie.title, overflow: TextOverflow.ellipsis)),
+                      ],
+                    ),
+                  ),
+                )
                 .toList(),
-            onChanged: (value) => setState(() => _selectedMovie = value),
+            onChanged: (value) async {
+              if (value == null) return;
+              setState(() {
+                _selectedMovie = value;
+                _cells = List.generate(6, (_) => _ScheduleCell.empty());
+              });
+              final meta = await widget.adminRepository.loadMovieMeta(value.id, value.duration);
+              if (!mounted) return;
+              setState(() => _movieMeta = meta);
+            },
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 12),
+          DropdownButtonFormField<HallRef>(
+            value: _selectedHall,
+            isExpanded: true,
+            decoration: const InputDecoration(labelText: 'Зал'),
+            items: _halls
+                .map(
+                  (h) => DropdownMenuItem<HallRef>(
+                    value: h.ref,
+                    child: Text(h.label, overflow: TextOverflow.ellipsis),
+                  ),
+                )
+                .toList(),
+            onChanged: (value) async {
+              setState(() {
+                _selectedHall = value;
+                _cells = List.generate(6, (_) => _ScheduleCell.empty());
+              });
+              if (value == null) return;
+              final existing = await widget.adminRepository.loadExistingHallSlots(
+                cinemaId: value.cinemaId,
+                hallId: value.hallId,
+              );
+              if (!mounted) return;
+              setState(() => _existingSlots = existing);
+            },
+          ),
+          const SizedBox(height: 10),
+          if (_selectedMovie != null)
+            Text('Возраст: $age • Длительность: ${duration} мин', style: const TextStyle(fontWeight: FontWeight.w600)),
+          const SizedBox(height: 12),
+          const Text('Выберите ячейку времени. Соседние ячейки пересчитаются автоматически.'),
+          const SizedBox(height: 8),
           Wrap(
             spacing: 8,
-            children: [10, 11, 12].map((hour) {
-              final selected = _selectedHour == hour;
-              return ChoiceChip(
-                label: Text('${hour.toString().padLeft(2, '0')}:00'),
-                selected: selected,
-                onSelected: (_) => setState(() => _selectedHour = hour),
+            runSpacing: 8,
+            children: List.generate(_cells.length, (index) {
+              final cell = _cells[index];
+              final conflict = _hasConflict(cell.time, duration);
+              return GestureDetector(
+                onTap: _selectedMovie == null || _selectedHall == null
+                    ? null
+                    : () async {
+                        final picked = await showTimePicker(
+                          context: context,
+                          initialTime: cell.time != null ? TimeOfDay.fromDateTime(cell.time!) : const TimeOfDay(hour: 10, minute: 0),
+                        );
+                        if (picked == null) return;
+
+                        final now = DateTime.now();
+                        final time = DateTime(now.year, now.month, now.day, picked.hour, picked.minute);
+                        _recalculateCells(index, _roundTo10(time), duration);
+                      },
+                child: Container(
+                  width: 110,
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(10),
+                    color: conflict ? Colors.red.withOpacity(0.2) : Theme.of(context).cardColor,
+                    border: Border.all(
+                      color: conflict ? Colors.red : Colors.grey.shade400,
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Слот ${index + 1}', style: const TextStyle(fontWeight: FontWeight.w600)),
+                      const SizedBox(height: 4),
+                      Text(cell.time == null ? '--:--' : _formatTime(cell.time!)),
+                      if (conflict)
+                        const Padding(
+                          padding: EdgeInsets.only(top: 4),
+                          child: Text('Конфликт', style: TextStyle(color: Colors.red, fontSize: 11)),
+                        ),
+                    ],
+                  ),
+                ),
               );
-            }).toList(),
+            }),
           ),
           const SizedBox(height: 12),
           Row(
             children: [
               Expanded(
                 child: FilledButton.icon(
-                  onPressed: _selectedMovie == null || _selectedHour == null
-                      ? null
-                      : () async {
-                          await _showHallSelectorAndApply();
-                        },
-                  icon: const Icon(Icons.schedule),
-                  label: const Text('Применить расписание'),
+                  onPressed: _saving || !_canSave(duration) ? null : () => _save(duration),
+                  icon: const Icon(Icons.save),
+                  label: const Text('Сохранить расписание'),
                 ),
               ),
               const SizedBox(width: 8),
               OutlinedButton(
-                onPressed: _selectedMovie == null
-                    ? null
-                    : () => widget.adminRepository.clearMovieSchedule(_selectedMovie!.id),
+                onPressed: () => setState(() => _cells = List.generate(6, (_) => _ScheduleCell.empty())),
                 child: const Text('Очистить'),
               ),
             ],
           ),
-          const SizedBox(height: 16),
-          if (_selectedMovie != null)
-            Expanded(
-              child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                stream: widget.adminRepository.movieScheduleStream(_selectedMovie!.id),
-                builder: (context, snapshot) {
-                  final docs = snapshot.data?.docs ?? [];
-                  if (docs.isEmpty) {
-                    return const Center(child: Text('Для этого фильма пока нет сеансов в расписании'));
-                  }
-
-                  return ListView.builder(
-                    itemCount: docs.length,
-                    itemBuilder: (context, index) {
-                      final data = docs[index].data();
-                      final start = (data['startTime'] as Timestamp).toDate();
-                      final end = (data['endTime'] as Timestamp).toDate();
-                      return Card(
-                        child: ListTile(
-                          title: Text('${data['cinemaName']} • ${data['hallName']}'),
-                          subtitle: Text(
-                            '${start.hour.toString().padLeft(2, '0')}:${start.minute.toString().padLeft(2, '0')} '
-                            '- ${end.hour.toString().padLeft(2, '0')}:${end.minute.toString().padLeft(2, '0')}',
-                          ),
-                        ),
-                      );
-                    },
-                  );
-                },
-              ),
-            ),
         ],
       ),
     );
   }
 
-  Future<void> _showHallSelectorAndApply() async {
-    final cinemasSnapshot = await FirebaseFirestore.instance.collection('cinemas').get();
-    final selected = <HallRef>[];
+  void _recalculateCells(int pivot, DateTime pivotTime, int duration) {
+    final gap = Duration(minutes: duration + 20);
+    final next = List<_ScheduleCell>.from(_cells);
+    next[pivot] = _ScheduleCell(time: pivotTime);
+
+    DateTime t = pivotTime;
+    for (int i = pivot + 1; i < next.length; i++) {
+      t = _roundTo10(t.add(gap));
+      next[i] = _ScheduleCell(time: t);
+    }
+
+    t = pivotTime;
+    for (int i = pivot - 1; i >= 0; i--) {
+      t = _roundTo10(t.subtract(gap));
+      next[i] = _ScheduleCell(time: t);
+    }
+
+    setState(() => _cells = next);
+  }
+
+  bool _hasConflict(DateTime? start, int duration) {
+    if (start == null) return false;
+    final end = start.add(Duration(minutes: duration));
+    for (final existing in _existingSlots) {
+      final intersects = start.isBefore(existing.end) && end.isAfter(existing.start);
+      if (intersects) return true;
+    }
+    return false;
+  }
+
+  bool _canSave(int duration) {
+    if (_selectedMovie == null || _selectedHall == null) return false;
+    final starts = _cells.where((e) => e.time != null).map((e) => e.time!).toList();
+    if (starts.isEmpty) return false;
+    return !starts.any((s) => _hasConflict(s, duration));
+  }
+
+  Future<void> _save(int duration) async {
+    if (_selectedMovie == null || _selectedHall == null) return;
+    setState(() => _saving = true);
+
+    final starts = _cells.where((e) => e.time != null).map((e) => e.time!).toList();
+    await widget.adminRepository.saveMovieScheduleForHall(
+      movie: _selectedMovie!,
+      hall: _selectedHall!,
+      starts: starts,
+      cleanupMinutes: 20,
+    );
 
     if (!mounted) return;
-
-    await showDialog<void>(
-      context: context,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setStateDialog) {
-            return AlertDialog(
-              title: const Text('Выберите залы'),
-              content: SizedBox(
-                width: 360,
-                child: FutureBuilder<List<_HallOption>>(
-                  future: _loadHallOptions(cinemasSnapshot),
-                  builder: (context, snapshot) {
-                    final options = snapshot.data ?? [];
-                    return ListView(
-                      shrinkWrap: true,
-                      children: options.map((option) {
-                        final checked = selected.any((e) => e.hallId == option.ref.hallId && e.cinemaId == option.ref.cinemaId);
-                        return CheckboxListTile(
-                          value: checked,
-                          onChanged: (value) {
-                            setStateDialog(() {
-                              if (value == true) {
-                                selected.add(option.ref);
-                              } else {
-                                selected.removeWhere((e) => e.hallId == option.ref.hallId && e.cinemaId == option.ref.cinemaId);
-                              }
-                            });
-                          },
-                          title: Text(option.label),
-                        );
-                      }).toList(),
-                    );
-                  },
-                ),
-              ),
-              actions: [
-                TextButton(onPressed: () => Navigator.pop(context), child: const Text('Отмена')),
-                FilledButton(
-                  onPressed: selected.isEmpty
-                      ? null
-                      : () async {
-                          await widget.adminRepository.clearMovieSchedule(_selectedMovie!.id);
-                          await widget.adminRepository.applyScheduleForMovie(
-                            movie: _selectedMovie!,
-                            halls: selected,
-                            baseHour: _selectedHour!,
-                          );
-                          if (context.mounted) Navigator.pop(context);
-                        },
-                  child: const Text('Сохранить'),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
+    setState(() => _saving = false);
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Расписание сохранено')));
   }
 
   Future<List<_HallOption>> _loadHallOptions(QuerySnapshot<Map<String, dynamic>> cinemasSnapshot) async {
@@ -453,6 +513,32 @@ class _ScheduleManagementTabState extends State<_ScheduleManagementTab> {
     }
     return result;
   }
+
+  DateTime _roundTo10(DateTime value) {
+    final minute = value.minute;
+    final rounded = (minute / 10).round() * 10;
+    final adjusted = DateTime(value.year, value.month, value.day, value.hour, 0).add(Duration(minutes: rounded));
+    return adjusted;
+  }
+
+  String _formatTime(DateTime date) => '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+
+  int _parseDuration(String durationStr) {
+    final hoursMatch = RegExp(r'(\d+)ч').firstMatch(durationStr);
+    final minsMatch = RegExp(r'(\d+)м').firstMatch(durationStr);
+    int total = 0;
+    if (hoursMatch != null) total += int.parse(hoursMatch.group(1)!) * 60;
+    if (minsMatch != null) total += int.parse(minsMatch.group(1)!);
+    return total > 0 ? total : 120;
+  }
+}
+
+class _ScheduleCell {
+  const _ScheduleCell({required this.time});
+
+  factory _ScheduleCell.empty() => const _ScheduleCell(time: null);
+
+  final DateTime? time;
 }
 
 class HallLayoutEditorPage extends StatefulWidget {

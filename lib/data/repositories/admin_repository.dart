@@ -213,6 +213,120 @@ class AdminRepository {
     await batch.commit();
   }
 
+
+  Future<MovieMeta> loadMovieMeta(int movieId, String fallbackDuration) async {
+    try {
+      final details = await _tmdbRepository.loadMovieFullDetails(movieId);
+      final runtime = details.runtimeMinutes > 0 ? details.runtimeMinutes : _parseDuration(fallbackDuration);
+      return MovieMeta(
+        durationMinutes: runtime,
+        ageRating: details.ageRating?.trim().isNotEmpty == true ? details.ageRating!.trim() : '16+',
+      );
+    } catch (_) {
+      return MovieMeta(
+        durationMinutes: _parseDuration(fallbackDuration),
+        ageRating: '16+',
+      );
+    }
+  }
+
+  Future<List<ExistingSessionSlot>> loadExistingHallSlots({
+    required String cinemaId,
+    required String hallId,
+  }) async {
+    final now = DateTime.now();
+    final dayStart = DateTime(now.year, now.month, now.day);
+    final dayEnd = dayStart.add(const Duration(days: 1));
+
+    final snapshot = await _firestore
+        .collection('global_schedule')
+        .where('cinemaId', isEqualTo: cinemaId)
+        .where('hallId', isEqualTo: hallId)
+        .where('startTime', isGreaterThanOrEqualTo: Timestamp.fromDate(dayStart))
+        .where('startTime', isLessThan: Timestamp.fromDate(dayEnd))
+        .get();
+
+    return snapshot.docs
+        .map((doc) {
+          final data = doc.data();
+          return ExistingSessionSlot(
+            id: doc.id,
+            movieId: (data['movieId'] as num?)?.toInt() ?? 0,
+            start: (data['startTime'] as Timestamp).toDate(),
+            end: (data['endTime'] as Timestamp).toDate(),
+          );
+        })
+        .toList();
+  }
+
+  Future<void> saveMovieScheduleForHall({
+    required MovieItem movie,
+    required HallRef hall,
+    required List<DateTime> starts,
+    int cleanupMinutes = 20,
+  }) async {
+    _ensureAdmin();
+
+    final meta = await loadMovieMeta(movie.id, movie.duration);
+    final duration = meta.durationMinutes;
+    final seats = _buildSeatsFromRef(hall);
+
+    final oldSessions = await _firestore
+        .collection('sessions')
+        .where('movieId', isEqualTo: movie.id)
+        .where('cinemaId', isEqualTo: hall.cinemaId)
+        .where('hallId', isEqualTo: hall.hallId)
+        .get();
+    final oldGlobal = await _firestore
+        .collection('global_schedule')
+        .where('movieId', isEqualTo: movie.id)
+        .where('cinemaId', isEqualTo: hall.cinemaId)
+        .where('hallId', isEqualTo: hall.hallId)
+        .get();
+
+    final batch = _firestore.batch();
+    for (final doc in oldSessions.docs) {
+      batch.delete(doc.reference);
+    }
+    for (final doc in oldGlobal.docs) {
+      batch.delete(doc.reference);
+    }
+
+    final sortedStarts = starts.toList()..sort();
+    for (final start in sortedStarts) {
+      final end = start.add(Duration(minutes: duration));
+      final sessionRef = _firestore.collection('sessions').doc();
+      batch.set(sessionRef, {
+        'movieId': movie.id,
+        'movieTitle': movie.title,
+        'startTime': Timestamp.fromDate(start),
+        'endTime': Timestamp.fromDate(end),
+        'cinemaName': hall.cinemaName,
+        'cinemaId': hall.cinemaId,
+        'cinemaAddress': hall.cinemaAddress,
+        'hallId': hall.hallId,
+        'hallName': hall.hallName,
+        'cleanupMinutes': cleanupMinutes,
+        'seats': seats.map((e) => e.toMap()).toList(),
+      });
+
+      final scheduleRef = _firestore.collection('global_schedule').doc();
+      batch.set(scheduleRef, {
+        'movieId': movie.id,
+        'movieTitle': movie.title,
+        'cinemaId': hall.cinemaId,
+        'cinemaName': hall.cinemaName,
+        'hallId': hall.hallId,
+        'hallName': hall.hallName,
+        'startTime': Timestamp.fromDate(start),
+        'endTime': Timestamp.fromDate(end),
+        'generatedAt': FieldValue.serverTimestamp(),
+      });
+    }
+
+    await batch.commit();
+  }
+
   Future<void> clearMovieSchedule(int movieId) async {
     _ensureAdmin();
 
@@ -455,4 +569,26 @@ class SeatLayoutCell {
       'isVip': isVip,
     };
   }
+}
+
+
+class MovieMeta {
+  const MovieMeta({required this.durationMinutes, required this.ageRating});
+
+  final int durationMinutes;
+  final String ageRating;
+}
+
+class ExistingSessionSlot {
+  const ExistingSessionSlot({
+    required this.id,
+    required this.movieId,
+    required this.start,
+    required this.end,
+  });
+
+  final String id;
+  final int movieId;
+  final DateTime start;
+  final DateTime end;
 }
