@@ -1,6 +1,7 @@
 import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../../domain/entities/movie.dart';
 import '../../domain/entities/session.dart';
 import 'tmdb_repository.dart';
 
@@ -23,17 +24,8 @@ class BookingRepository {
     await _ensureAdmin();
 
     final homeData = await _tmdbRepository.loadHomeData();
-    var movies = homeData.movies.toList();
-    movies.shuffle();
-    final selectedMovies = movies.take(30).toList();
-
-    if (selectedMovies.isEmpty) return;
-
-    final cinemas = [
-      {'name': 'Kinopark 8 Saryarka', 'address': 'пр. Туран, 24'},
-      {'name': 'Chaplin Khan Shatyr', 'address': 'пр. Туран, 37'},
-      {'name': 'Keruen Cinema', 'address': 'ул. Достык, 9'},
-    ];
+    final movies = _buildMovieSlots(homeData.movies);
+    if (movies.isEmpty) return;
 
     final random = Random();
     final now = DateTime.now();
@@ -49,38 +41,61 @@ class BookingRepository {
         baseDate.day,
       ).add(const Duration(days: 1, hours: 1));
 
-      for (var cinema in cinemas) {
-        for (int hallId = 1; hallId <= 3; hallId++) {
+      for (final cinema in _cinemas) {
+        for (int hallId = 1; hallId <= cinema.halls.length; hallId++) {
+          final hall = cinema.halls[hallId - 1];
           DateTime currentTime = dayStart;
           int lastMovieId = -1;
 
           while (currentTime.isBefore(dayEnd)) {
-            var availableMovies = selectedMovies
-                .where((m) => m.id != lastMovieId)
-                .toList();
-            if (availableMovies.isEmpty) availableMovies = selectedMovies;
-            final movie =
-                availableMovies[random.nextInt(availableMovies.length)];
-            lastMovieId = movie.id;
+            if (currentTime.isBefore(now)) {
+              currentTime = currentTime.add(const Duration(minutes: 20));
+              continue;
+            }
 
-            final duration = _parseDuration(movie.duration);
+            final slotPopularity = _timePopularity(currentTime.hour);
+            final hallMovies =
+                movies.where((movie) => hall.canPlay(movie.popularity)).toList();
+            var availableMovies = hallMovies
+                .where(
+                  (movie) =>
+                      movie.popularity == slotPopularity &&
+                      movie.tmdbId != lastMovieId,
+                )
+                .toList();
+            if (availableMovies.isEmpty) {
+              availableMovies =
+                  hallMovies.where((movie) => movie.tmdbId != lastMovieId).toList();
+            }
+            if (availableMovies.isEmpty) {
+              availableMovies = hallMovies;
+            }
+            if (availableMovies.isEmpty) break;
+
+            final movie = availableMovies[random.nextInt(availableMovies.length)];
+            lastMovieId = movie.tmdbId;
+
+            final duration = movie.runtimeMinutes;
             final sessionEndTime = currentTime.add(Duration(minutes: duration));
             if (sessionEndTime.isAfter(dayEnd)) {
               break;
             }
 
-            final capacity = [60, 70, 80][random.nextInt(3)];
-            final seats = _generateSeats(capacity);
+            final seats = _generateSeatsFromHall(hall);
 
             operations.add((
               ref: _firestore.collection('sessions').doc(),
               data: {
-                'movieId': movie.id,
+                'movieId': movie.tmdbId,
                 'movieTitle': movie.title,
                 'startTime': Timestamp.fromDate(currentTime),
                 'endTime': Timestamp.fromDate(sessionEndTime),
-                'cinemaName': cinema['name'],
+                'cinemaName': cinema.name,
                 'hallId': hallId,
+                'hallName': hall.name,
+                'hallType': hall.type.name,
+                'runtimeMinutes': movie.runtimeMinutes,
+                'popularity': movie.popularity,
                 'seats': seats.map((s) => s.toMap()).toList(),
               },
             ));
@@ -221,6 +236,62 @@ class BookingRepository {
     return seats;
   }
 
+  List<_MovieSlot> _buildMovieSlots(List<MovieItem> movies) {
+    final slots = movies
+        .map(
+          (movie) => _MovieSlot(
+            tmdbId: movie.id,
+            title: movie.title,
+            runtimeMinutes: _parseDuration(movie.duration),
+            popularity: movie.rating >= 7.2
+                ? 1
+                : movie.rating >= 6.0
+                    ? 2
+                    : 3,
+          ),
+        )
+        .where((slot) => slot.runtimeMinutes > 30)
+        .toList();
+
+    if (slots.isNotEmpty) return slots;
+    return _fallbackMovies;
+  }
+
+  int _timePopularity(int hour) {
+    if (hour >= 18 && hour <= 22) return 1;
+    if (hour >= 12 && hour <= 17) return 2;
+    return 3;
+  }
+
+  List<Seat> _generateSeatsFromHall(_Hall hall) {
+    final seats = <Seat>[];
+    final vipStartRow = (hall.rows * 0.6).floor().clamp(1, hall.rows);
+
+    for (int row = 1; row <= hall.rows; row++) {
+      for (int col = 1; col <= hall.seatsPerRow; col++) {
+        final center = hall.seatsPerRow / 2;
+        final isCenterSeat = (col - center).abs() <= 1.5;
+        final isVipByRow = row >= vipStartRow;
+        final isVip = hall.type == _HallType.vip ||
+            (hall.type == _HallType.imax && isCenterSeat) ||
+            (hall.type == _HallType.comfort && isVipByRow && isCenterSeat) ||
+            (hall.type == _HallType.standard && isVipByRow && isCenterSeat);
+
+        seats.add(
+          Seat(
+            id: 'r${row}c$col',
+            row: row,
+            column: col,
+            isAvailable: true,
+            isVip: isVip,
+          ),
+        );
+      }
+    }
+
+    return seats;
+  }
+
   Stream<List<MovieSession>> getSessions(int movieId) {
     return _firestore
         .collection('sessions')
@@ -327,3 +398,85 @@ class BookingRepository {
         });
   }
 }
+
+class _Cinema {
+  const _Cinema({required this.name, required this.halls});
+
+  final String name;
+  final List<_Hall> halls;
+}
+
+class _Hall {
+  const _Hall({
+    required this.name,
+    required this.type,
+    required this.rows,
+    required this.seatsPerRow,
+  });
+
+  final String name;
+  final _HallType type;
+  final int rows;
+  final int seatsPerRow;
+
+  bool canPlay(int popularity) {
+    if (type == _HallType.imax || type == _HallType.vip) {
+      return popularity <= 2;
+    }
+    return true;
+  }
+}
+
+enum _HallType { standard, comfort, vip, imax }
+
+class _MovieSlot {
+  const _MovieSlot({
+    required this.tmdbId,
+    required this.title,
+    required this.runtimeMinutes,
+    required this.popularity,
+  });
+
+  final int tmdbId;
+  final String title;
+  final int runtimeMinutes;
+  final int popularity;
+}
+
+const List<_Cinema> _cinemas = [
+  _Cinema(
+    name: 'Синема Парк',
+    halls: [
+      _Hall(name: 'IMAX', type: _HallType.imax, rows: 12, seatsPerRow: 14),
+      _Hall(name: 'Зал VIP', type: _HallType.vip, rows: 6, seatsPerRow: 8),
+      _Hall(name: 'Комфорт', type: _HallType.comfort, rows: 10, seatsPerRow: 12),
+    ],
+  ),
+  _Cinema(
+    name: 'Мегаплекс',
+    halls: [
+      _Hall(name: 'Dolby Atmos', type: _HallType.imax, rows: 11, seatsPerRow: 13),
+      _Hall(name: 'Комфорт', type: _HallType.comfort, rows: 8, seatsPerRow: 10),
+      _Hall(name: 'Зал 3', type: _HallType.standard, rows: 10, seatsPerRow: 12),
+    ],
+  ),
+  _Cinema(
+    name: 'Kinomax',
+    halls: [
+      _Hall(name: '4DX', type: _HallType.vip, rows: 8, seatsPerRow: 10),
+      _Hall(name: 'Premium', type: _HallType.comfort, rows: 7, seatsPerRow: 9),
+      _Hall(name: 'Зал 3', type: _HallType.standard, rows: 10, seatsPerRow: 12),
+    ],
+  ),
+];
+
+const List<_MovieSlot> _fallbackMovies = [
+  _MovieSlot(tmdbId: 550, title: 'Бойцовский клуб', runtimeMinutes: 139, popularity: 1),
+  _MovieSlot(tmdbId: 27205, title: 'Начало', runtimeMinutes: 148, popularity: 1),
+  _MovieSlot(tmdbId: 157336, title: 'Интерстеллар', runtimeMinutes: 169, popularity: 1),
+  _MovieSlot(tmdbId: 299534, title: 'Мстители: Финал', runtimeMinutes: 181, popularity: 1),
+  _MovieSlot(tmdbId: 76341, title: 'Безумный Макс', runtimeMinutes: 120, popularity: 2),
+  _MovieSlot(tmdbId: 475557, title: 'Джокер', runtimeMinutes: 122, popularity: 2),
+  _MovieSlot(tmdbId: 496243, title: 'Паразиты', runtimeMinutes: 132, popularity: 2),
+  _MovieSlot(tmdbId: 13, title: 'Форрест Гамп', runtimeMinutes: 142, popularity: 3),
+];
