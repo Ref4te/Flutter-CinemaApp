@@ -521,6 +521,32 @@ class _HallLayoutEditorPageState extends State<HallLayoutEditorPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('Размер: ${_rows}x$_cols • Обычные: ${enabled - vip} • VIP: $vip'),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 12,
+              runSpacing: 8,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text('Ряды'),
+                    IconButton(onPressed: () => _resize(rows: _rows - 1, cols: _cols), icon: const Icon(Icons.remove_circle_outline)),
+                    Text('$_rows'),
+                    IconButton(onPressed: () => _resize(rows: _rows + 1, cols: _cols), icon: const Icon(Icons.add_circle_outline)),
+                  ],
+                ),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text('Места в ряду'),
+                    IconButton(onPressed: () => _resize(rows: _rows, cols: _cols - 1), icon: const Icon(Icons.remove_circle_outline)),
+                    Text('$_cols'),
+                    IconButton(onPressed: () => _resize(rows: _rows, cols: _cols + 1), icon: const Icon(Icons.add_circle_outline)),
+                  ],
+                ),
+              ],
+            ),
             const SizedBox(height: 10),
             Wrap(
               spacing: 8,
@@ -561,54 +587,102 @@ class _HallLayoutEditorPageState extends State<HallLayoutEditorPage> {
               child: SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
                 child: SingleChildScrollView(
-                  child: GestureDetector(
-                    onPanStart: (d) => _onDragStart(d.localPosition),
-                    onPanUpdate: (d) => _onDragUpdate(d.localPosition),
-                    onPanEnd: (_) => _applyRect(),
+                  child: Container(
                     child: SizedBox(
-                      width: _cols * _cellSize,
-                      height: _rows * _cellSize,
-                      child: Stack(
+                      width: (_cols + 1) * _cellSize,
+                      height: (_rows + 1) * _cellSize,
+                      child: Column(
                         children: [
-                          GridView.builder(
-                            physics: const NeverScrollableScrollPhysics(),
-                            itemCount: _rows * _cols,
-                            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: _cols,
-                              mainAxisSpacing: 2,
-                              crossAxisSpacing: 2,
-                            ),
-                            itemBuilder: (context, index) {
-                              final cell = _cells[index];
-                              Color color;
-                              if (!cell.isEnabled) {
-                                color = Colors.grey.shade300;
-                              } else if (cell.isVip) {
-                                color = Colors.amber;
-                              } else {
-                                color = Colors.redAccent;
-                              }
-
-                              return Container(
-                                decoration: BoxDecoration(
-                                  color: color,
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                              );
-                            },
-                          ),
-                          if (_previewRect != null)
-                            Positioned.fromRect(
-                              rect: _previewRect!,
-                              child: IgnorePointer(
-                                child: Container(
-                                  decoration: BoxDecoration(
-                                    border: Border.all(color: Colors.blueAccent, width: 2),
-                                    color: Colors.blueAccent.withOpacity(0.15),
+                          SizedBox(
+                            height: _cellSize,
+                            child: Row(
+                              children: [
+                                SizedBox(width: _cellSize),
+                                ...List.generate(
+                                  _cols,
+                                  (index) => SizedBox(
+                                    width: _cellSize,
+                                    child: Center(
+                                      child: Text('${index + 1}', style: const TextStyle(fontSize: 10)),
+                                    ),
                                   ),
                                 ),
-                              ),
+                              ],
                             ),
+                          ),
+                          Expanded(
+                            child: Row(
+                              children: [
+                                SizedBox(
+                                  width: _cellSize,
+                                  child: Column(
+                                    children: List.generate(
+                                      _rows,
+                                      (index) => SizedBox(
+                                        height: _cellSize,
+                                        child: Center(
+                                          child: Text('${index + 1}', style: const TextStyle(fontSize: 10)),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                GestureDetector(
+                                  onPanStart: (d) => _onDragStart(d.localPosition),
+                                  onPanUpdate: (d) => _onDragUpdate(d.localPosition),
+                                  onPanEnd: (_) => _applyRect(),
+                                  child: SizedBox(
+                                    width: _cols * _cellSize,
+                                    height: _rows * _cellSize,
+                                    child: Stack(
+                                      children: [
+                                        GridView.builder(
+                                          physics: const NeverScrollableScrollPhysics(),
+                                          itemCount: _rows * _cols,
+                                          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                                            crossAxisCount: _cols,
+                                            mainAxisSpacing: 0,
+                                            crossAxisSpacing: 0,
+                                          ),
+                                          itemBuilder: (context, index) {
+                                            final cell = _cells[index];
+                                            Color color;
+                                            if (!cell.isEnabled) {
+                                              color = Colors.grey.shade300;
+                                            } else if (cell.isVip) {
+                                              color = Colors.amber;
+                                            } else {
+                                              color = Colors.redAccent;
+                                            }
+
+                                            return Container(
+                                              margin: const EdgeInsets.all(1),
+                                              decoration: BoxDecoration(
+                                                color: color,
+                                                borderRadius: BorderRadius.circular(4),
+                                              ),
+                                            );
+                                          },
+                                        ),
+                                        if (_previewRect != null)
+                                          Positioned.fromRect(
+                                            rect: _previewRect!,
+                                            child: IgnorePointer(
+                                              child: Container(
+                                                decoration: BoxDecoration(
+                                                  border: Border.all(color: Colors.blueAccent, width: 2),
+                                                  color: Colors.blueAccent.withOpacity(0.15),
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -620,6 +694,35 @@ class _HallLayoutEditorPageState extends State<HallLayoutEditorPage> {
         ),
       ),
     );
+  }
+
+
+  void _resize({required int rows, required int cols}) {
+    final safeRows = rows.clamp(4, 30);
+    final safeCols = cols.clamp(4, 30);
+
+    if (safeRows == _rows && safeCols == _cols) return;
+
+    final map = <String, SeatLayoutCell>{
+      for (final cell in _cells) '${cell.row}_${cell.col}': cell,
+    };
+
+    final resized = <SeatLayoutCell>[];
+    for (int r = 1; r <= safeRows; r++) {
+      for (int c = 1; c <= safeCols; c++) {
+        final key = '${r}_${c}';
+        final old = map[key];
+        resized.add(
+          old ?? SeatLayoutCell(row: r, col: c, isEnabled: false, isVip: false),
+        );
+      }
+    }
+
+    setState(() {
+      _rows = safeRows;
+      _cols = safeCols;
+      _cells = resized;
+    });
   }
 
   void _reset() {
