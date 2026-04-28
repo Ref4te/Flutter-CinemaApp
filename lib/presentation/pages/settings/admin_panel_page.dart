@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
+import '../../../core/services/schedule_cells_service.dart';
 import '../../../data/repositories/admin_repository.dart';
 import '../../../domain/entities/movie.dart';
 
@@ -240,14 +241,16 @@ class _ScheduleManagementTab extends StatefulWidget {
 }
 
 class _ScheduleManagementTabState extends State<_ScheduleManagementTab> {
+  final ScheduleCellsService _cellsService = ScheduleCellsService();
+
   MovieItem? _selectedMovie;
-  HallRef? _selectedHall;
   MovieMeta? _movieMeta;
 
+  DateTime _selectedDate = DateTime.now();
+  int _dateOffset = 0;
   List<MovieItem> _movies = const [];
   List<_HallOption> _halls = const [];
-  List<_ScheduleCell> _cells = List.generate(6, (_) => _ScheduleCell.empty());
-  List<ExistingSessionSlot> _existingSlots = const [];
+  List<ScheduleCellItem> _grid = const [];
 
   bool _loading = true;
   bool _saving = false;
@@ -261,25 +264,34 @@ class _ScheduleManagementTabState extends State<_ScheduleManagementTab> {
   Future<void> _loadInitial() async {
     setState(() => _loading = true);
     final movies = await widget.adminRepository.loadMovies();
-    final cinemasSnapshot = await FirebaseFirestore.instance.collection('cinemas').get();
-    final halls = await _loadHallOptions(cinemasSnapshot);
+    final halls = await _loadHallOptions(await FirebaseFirestore.instance.collection('cinemas').get());
+    await _cellsService.ensureGrid(date: _selectedDate, halls: halls.map((e) => e.ref).toList());
+    final grid = await _cellsService.loadGrid(_selectedDate);
 
     if (!mounted) return;
     setState(() {
       _movies = movies;
       _halls = halls;
+      _grid = grid;
       _loading = false;
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_loading) {
-      return const Center(child: CircularProgressIndicator());
-    }
+    if (_loading) return const Center(child: CircularProgressIndicator());
 
     final duration = _movieMeta?.durationMinutes ?? _parseDuration(_selectedMovie?.duration ?? '2ч 0м');
     final age = _movieMeta?.ageRating ?? '16+';
+
+    final grouped = <String, List<ScheduleCellItem>>{};
+    for (final cell in _grid) {
+      final key = '${cell.cinemaName}__${cell.hallName}__${cell.cinemaId}__${cell.hallId}';
+      grouped.putIfAbsent(key, () => []).add(cell);
+    }
+    for (final entry in grouped.values) {
+      entry.sort((a, b) => a.slotIndex.compareTo(b.slotIndex));
+    }
 
     return Padding(
       padding: const EdgeInsets.all(16),
@@ -290,134 +302,124 @@ class _ScheduleManagementTabState extends State<_ScheduleManagementTab> {
             value: _selectedMovie,
             isExpanded: true,
             decoration: const InputDecoration(labelText: 'Фильм'),
-            items: _movies
-                .map(
-                  (movie) => DropdownMenuItem<MovieItem>(
-                    value: movie,
-                    child: Row(
-                      children: [
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(4),
-                          child: SizedBox(
-                            width: 28,
-                            height: 42,
-                            child: movie.imageUrl.isEmpty
-                                ? Container(color: Colors.grey.shade300)
-                                : Image.network(movie.imageUrl, fit: BoxFit.cover),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(child: Text(movie.title, overflow: TextOverflow.ellipsis)),
-                      ],
+            items: _movies.map((movie) => DropdownMenuItem<MovieItem>(
+              value: movie,
+              child: Row(
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: SizedBox(
+                      width: 28,
+                      height: 42,
+                      child: movie.imageUrl.isEmpty
+                          ? Container(color: Colors.grey.shade300)
+                          : Image.network(movie.imageUrl, fit: BoxFit.cover),
                     ),
                   ),
-                )
-                .toList(),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text(movie.title, overflow: TextOverflow.ellipsis)),
+                ],
+              ),
+            )).toList(),
             onChanged: (value) async {
               if (value == null) return;
-              setState(() {
-                _selectedMovie = value;
-                _cells = List.generate(6, (_) => _ScheduleCell.empty());
-              });
+              setState(() => _selectedMovie = value);
               final meta = await widget.adminRepository.loadMovieMeta(value.id, value.duration);
               if (!mounted) return;
               setState(() => _movieMeta = meta);
             },
           ),
-          const SizedBox(height: 12),
-          DropdownButtonFormField<HallRef>(
-            value: _selectedHall,
+          const SizedBox(height: 10),
+          DropdownButtonFormField<int>(
+            value: _dateOffset,
             isExpanded: true,
-            decoration: const InputDecoration(labelText: 'Зал'),
-            items: _halls
-                .map(
-                  (h) => DropdownMenuItem<HallRef>(
-                    value: h.ref,
-                    child: Text(h.label, overflow: TextOverflow.ellipsis),
-                  ),
-                )
-                .toList(),
-            onChanged: (value) async {
+            decoration: const InputDecoration(labelText: 'Дата'),
+            items: const [
+              DropdownMenuItem(value: 0, child: Text('Сегодня')),
+              DropdownMenuItem(value: 1, child: Text('Завтра')),
+              DropdownMenuItem(value: 2, child: Text('Послезавтра')),
+            ],
+            onChanged: (offset) async {
+              if (offset == null) return;
+              final base = DateTime.now();
+              final nextDate = DateTime(base.year, base.month, base.day).add(Duration(days: offset));
               setState(() {
-                _selectedHall = value;
-                _cells = List.generate(6, (_) => _ScheduleCell.empty());
+                _dateOffset = offset;
+                _selectedDate = nextDate;
+                _loading = true;
               });
-              if (value == null) return;
-              final existing = await widget.adminRepository.loadExistingHallSlots(
-                cinemaId: value.cinemaId,
-                hallId: value.hallId,
-              );
+              await _cellsService.ensureGrid(date: nextDate, halls: _halls.map((e) => e.ref).toList());
+              final grid = await _cellsService.loadGrid(nextDate);
               if (!mounted) return;
-              setState(() => _existingSlots = existing);
+              setState(() {
+                _grid = grid;
+                _loading = false;
+              });
             },
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 8),
           if (_selectedMovie != null)
             Text('Возраст: $age • Длительность: ${duration} мин', style: const TextStyle(fontWeight: FontWeight.w600)),
-          const SizedBox(height: 12),
-          const Text('Выберите ячейку времени. Соседние ячейки пересчитаются автоматически.'),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: List.generate(_cells.length, (index) {
-              final cell = _cells[index];
-              final conflict = _hasConflict(cell.time, duration);
-              return GestureDetector(
-                onTap: _selectedMovie == null || _selectedHall == null
-                    ? null
-                    : () async {
-                        final picked = await showTimePicker(
-                          context: context,
-                          initialTime: cell.time != null ? TimeOfDay.fromDateTime(cell.time!) : const TimeOfDay(hour: 10, minute: 0),
-                        );
-                        if (picked == null) return;
-
-                        final now = DateTime.now();
-                        final time = DateTime(now.year, now.month, now.day, picked.hour, picked.minute);
-                        _recalculateCells(index, _roundTo10(time), duration);
-                      },
-                child: Container(
-                  width: 110,
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(10),
-                    color: conflict ? Colors.red.withOpacity(0.2) : Theme.of(context).cardColor,
-                    border: Border.all(
-                      color: conflict ? Colors.red : Colors.grey.shade400,
+          const SizedBox(height: 10),
+          Expanded(
+            child: ListView(
+              children: grouped.entries.map((entry) {
+                final parts = entry.key.split('__');
+                final cinemaName = parts[0];
+                final hallName = parts[1];
+                final hallCells = entry.value;
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 10),
+                  child: Padding(
+                    padding: const EdgeInsets.all(10),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('$cinemaName • $hallName', style: const TextStyle(fontWeight: FontWeight.w600)),
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: hallCells.map((cell) {
+                            final state = _cellState(cell);
+                            return GestureDetector(
+                              onTap: _selectedMovie == null ? null : () => _onCellTap(cell, hallCells, duration),
+                              child: Container(
+                                width: 110,
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(10),
+                                  color: state.color,
+                                  border: Border.all(color: state.border),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(_formatTime(cell.startTime), style: const TextStyle(fontWeight: FontWeight.w600)),
+                                    const SizedBox(height: 4),
+                                    Text(cell.movieTitle ?? 'Свободно', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11)),
+                                  ],
+                                ),
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                      ],
                     ),
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Слот ${index + 1}', style: const TextStyle(fontWeight: FontWeight.w600)),
-                      const SizedBox(height: 4),
-                      Text(cell.time == null ? '--:--' : _formatTime(cell.time!)),
-                      if (conflict)
-                        const Padding(
-                          padding: EdgeInsets.only(top: 4),
-                          child: Text('Конфликт', style: TextStyle(color: Colors.red, fontSize: 11)),
-                        ),
-                    ],
-                  ),
-                ),
-              );
-            }),
+                );
+              }).toList(),
+            ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
           Row(
             children: [
               Expanded(
                 child: FilledButton.icon(
-                  onPressed: _saving || !_canSave(duration) ? null : () => _save(duration),
+                  onPressed: _selectedMovie == null || _saving ? null : _saveAll,
                   icon: const Icon(Icons.save),
-                  label: const Text('Сохранить расписание'),
+                  label: const Text('Сохранить'),
                 ),
-              ),
-              const SizedBox(width: 8),
-              OutlinedButton(
-                onPressed: () => setState(() => _cells = List.generate(6, (_) => _ScheduleCell.empty())),
-                child: const Text('Очистить'),
               ),
             ],
           ),
@@ -426,54 +428,75 @@ class _ScheduleManagementTabState extends State<_ScheduleManagementTab> {
     );
   }
 
-  void _recalculateCells(int pivot, DateTime pivotTime, int duration) {
+  _CellState _cellState(ScheduleCellItem cell) {
+    if (cell.movieId == null) return _CellState(Colors.grey.shade300, Colors.grey.shade500);
+    if (_selectedMovie != null && cell.movieId == _selectedMovie!.id) {
+      return _CellState(Colors.green.withOpacity(0.25), Colors.green);
+    }
+    return _CellState(Colors.red.withOpacity(0.25), Colors.red);
+  }
+
+  Future<void> _onCellTap(ScheduleCellItem pivot, List<ScheduleCellItem> hallCells, int duration) async {
+    if (_selectedMovie == null) return;
+    if (pivot.movieId != null && pivot.movieId != _selectedMovie!.id) return;
+
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(pivot.startTime),
+    );
+    if (picked == null) return;
+
+    final pivotTime = DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day, picked.hour, picked.minute);
     final gap = Duration(minutes: duration + 20);
-    final next = List<_ScheduleCell>.from(_cells);
-    next[pivot] = _ScheduleCell(time: pivotTime);
 
-    DateTime t = pivotTime;
-    for (int i = pivot + 1; i < next.length; i++) {
-      t = _roundTo10(t.add(gap));
-      next[i] = _ScheduleCell(time: t);
+    final sorted = hallCells.toList()..sort((a, b) => a.slotIndex.compareTo(b.slotIndex));
+    final pivotIndex = sorted.indexWhere((e) => e.id == pivot.id);
+    if (pivotIndex < 0) return;
+
+    DateTime t = _roundTo10(pivotTime);
+    final updated = <String, ScheduleCellItem>{};
+    for (int i = pivotIndex; i < sorted.length; i++) {
+      final c = sorted[i];
+      if (i != pivotIndex) t = _roundTo10(t.add(gap));
+      if (c.movieId != null && c.movieId != _selectedMovie!.id) break;
+      updated[c.id] = c.copyWith(startTime: t, movieId: _selectedMovie!.id, movieTitle: _selectedMovie!.title);
     }
 
-    t = pivotTime;
-    for (int i = pivot - 1; i >= 0; i--) {
+    t = _roundTo10(pivotTime);
+    for (int i = pivotIndex - 1; i >= 0; i--) {
+      final c = sorted[i];
       t = _roundTo10(t.subtract(gap));
-      next[i] = _ScheduleCell(time: t);
+      if (c.movieId != null && c.movieId != _selectedMovie!.id) break;
+      updated[c.id] = c.copyWith(startTime: t, movieId: _selectedMovie!.id, movieTitle: _selectedMovie!.title);
     }
 
-    setState(() => _cells = next);
+    setState(() {
+      _grid = _grid.map((cell) => updated[cell.id] ?? cell).toList();
+    });
   }
 
-  bool _hasConflict(DateTime? start, int duration) {
-    if (start == null) return false;
-    final end = start.add(Duration(minutes: duration));
-    for (final existing in _existingSlots) {
-      final intersects = start.isBefore(existing.end) && end.isAfter(existing.start);
-      if (intersects) return true;
-    }
-    return false;
-  }
-
-  bool _canSave(int duration) {
-    if (_selectedMovie == null || _selectedHall == null) return false;
-    final starts = _cells.where((e) => e.time != null).map((e) => e.time!).toList();
-    if (starts.isEmpty) return false;
-    return !starts.any((s) => _hasConflict(s, duration));
-  }
-
-  Future<void> _save(int duration) async {
-    if (_selectedMovie == null || _selectedHall == null) return;
+  Future<void> _saveAll() async {
+    if (_selectedMovie == null) return;
     setState(() => _saving = true);
 
-    final starts = _cells.where((e) => e.time != null).map((e) => e.time!).toList();
-    await widget.adminRepository.saveMovieScheduleForHall(
-      movie: _selectedMovie!,
-      hall: _selectedHall!,
-      starts: starts,
-      cleanupMinutes: 20,
-    );
+    await _cellsService.saveGrid(_grid);
+
+    final selectedCells = _grid.where((c) => c.movieId == _selectedMovie!.id).toList();
+    final byHall = <String, List<ScheduleCellItem>>{};
+    for (final c in selectedCells) {
+      final key = '${c.cinemaId}_${c.hallId}';
+      byHall.putIfAbsent(key, () => []).add(c);
+    }
+
+    for (final hallEntry in byHall.entries) {
+      final first = hallEntry.value.first;
+      final hallRef = _halls.firstWhere((h) => h.ref.cinemaId == first.cinemaId && h.ref.hallId == first.hallId).ref;
+      await widget.adminRepository.saveMovieScheduleForHall(
+        movie: _selectedMovie!,
+        hall: hallRef,
+        starts: hallEntry.value.map((e) => e.startTime).toList(),
+      );
+    }
 
     if (!mounted) return;
     setState(() => _saving = false);
@@ -517,8 +540,7 @@ class _ScheduleManagementTabState extends State<_ScheduleManagementTab> {
   DateTime _roundTo10(DateTime value) {
     final minute = value.minute;
     final rounded = (minute / 10).round() * 10;
-    final adjusted = DateTime(value.year, value.month, value.day, value.hour, 0).add(Duration(minutes: rounded));
-    return adjusted;
+    return DateTime(value.year, value.month, value.day, value.hour, 0).add(Duration(minutes: rounded));
   }
 
   String _formatTime(DateTime date) => '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
@@ -533,12 +555,11 @@ class _ScheduleManagementTabState extends State<_ScheduleManagementTab> {
   }
 }
 
-class _ScheduleCell {
-  const _ScheduleCell({required this.time});
+class _CellState {
+  const _CellState(this.color, this.border);
 
-  factory _ScheduleCell.empty() => const _ScheduleCell(time: null);
-
-  final DateTime? time;
+  final Color color;
+  final Color border;
 }
 
 class HallLayoutEditorPage extends StatefulWidget {

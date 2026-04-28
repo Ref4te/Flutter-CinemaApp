@@ -240,13 +240,15 @@ class AdminRepository {
 
     final snapshot = await _firestore
         .collection('global_schedule')
-        .where('cinemaId', isEqualTo: cinemaId)
         .where('hallId', isEqualTo: hallId)
-        .where('startTime', isGreaterThanOrEqualTo: Timestamp.fromDate(dayStart))
-        .where('startTime', isLessThan: Timestamp.fromDate(dayEnd))
         .get();
 
     return snapshot.docs
+        .where((doc) {
+          final data = doc.data();
+          final start = (data['startTime'] as Timestamp?)?.toDate();
+          return data['cinemaId'] == cinemaId && start != null && !start.isBefore(dayStart) && start.isBefore(dayEnd);
+        })
         .map((doc) {
           final data = doc.data();
           return ExistingSessionSlot(
