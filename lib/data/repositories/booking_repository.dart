@@ -44,6 +44,12 @@ class BookingRepository {
       for (final cinema in _cinemas) {
         for (int hallId = 1; hallId <= cinema.halls.length; hallId++) {
           final hall = cinema.halls[hallId - 1];
+          final hallMovies = movies
+              .where((movie) => hall.canPlay(movie.popularity))
+              .toList()
+            ..shuffle(random);
+          int hallCursor = 0;
+
           DateTime currentTime = dayStart;
           int lastMovieId = -1;
 
@@ -54,25 +60,25 @@ class BookingRepository {
             }
 
             final slotPopularity = _timePopularity(currentTime.hour);
-            final hallMovies =
-                movies.where((movie) => hall.canPlay(movie.popularity)).toList();
-            var availableMovies = hallMovies
-                .where(
-                  (movie) =>
-                      movie.popularity == slotPopularity &&
-                      movie.tmdbId != lastMovieId,
-                )
-                .toList();
-            if (availableMovies.isEmpty) {
-              availableMovies =
-                  hallMovies.where((movie) => movie.tmdbId != lastMovieId).toList();
-            }
-            if (availableMovies.isEmpty) {
-              availableMovies = hallMovies;
-            }
-            if (availableMovies.isEmpty) break;
+            if (hallMovies.isEmpty) break;
 
-            final movie = availableMovies[random.nextInt(availableMovies.length)];
+            _MovieSlot pickMovie({required bool strictPopularity}) {
+              for (int i = 0; i < hallMovies.length; i++) {
+                final candidate = hallMovies[(hallCursor + i) % hallMovies.length];
+                final matchesPopularity =
+                    !strictPopularity || candidate.popularity == slotPopularity;
+                final isNotRepeat = candidate.tmdbId != lastMovieId;
+                if (matchesPopularity && isNotRepeat) {
+                  hallCursor = (hallCursor + i + 1) % hallMovies.length;
+                  return candidate;
+                }
+              }
+              final fallback = hallMovies[hallCursor % hallMovies.length];
+              hallCursor = (hallCursor + 1) % hallMovies.length;
+              return fallback;
+            }
+
+            final movie = pickMovie(strictPopularity: true);
             lastMovieId = movie.tmdbId;
 
             final duration = movie.runtimeMinutes;
@@ -251,9 +257,12 @@ class BookingRepository {
           ),
         )
         .where((slot) => slot.runtimeMinutes > 30)
-        .toList();
+        .toList()
+      ..sort((a, b) => a.popularity.compareTo(b.popularity));
 
-    if (slots.isNotEmpty) return slots;
+    if (slots.isNotEmpty) {
+      return slots.take(7).toList();
+    }
     return _fallbackMovies;
   }
 
