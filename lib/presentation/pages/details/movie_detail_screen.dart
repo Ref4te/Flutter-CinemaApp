@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:youtube_player_flutter/youtube_player_flutter.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 
 import '../../../domain/entities/movie.dart';
 import '../../../domain/entities/movie_details.dart';
@@ -131,8 +130,6 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
     required Widget? trailerPlayer,
   }) {
     final canBookTickets = _isReleasedStatus(details.status);
-    final user = FirebaseAuth.instance.currentUser;
-
     return DefaultTabController(
       length: 3,
       child: Scaffold(
@@ -165,25 +162,6 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                         ),
                       ),
                       actions: [
-                        if (user != null && user.email == 'manat11@mail.ru') ...[
-                          IconButton(
-                            icon: const Icon(Icons.delete_forever, color: Colors.redAccent),
-                            tooltip: 'Удалить все данные БД',
-                            onPressed: () => _showDeleteConfirmDialog(),
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.auto_fix_high),
-                            tooltip: 'Сгенерировать расписание (One-Click)',
-                            onPressed: () async {
-                              await _bookingRepository.generateScheduleForAdmin();
-                              if (mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('Расписание для 25 фильмов сгенерировано!'))
-                                );
-                              }
-                            },
-                          ),
-                        ],
                         IconButton(
                           onPressed: _toggleFavorite,
                           icon: Icon(
@@ -257,34 +235,6 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  void _showDeleteConfirmDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Удаление всех данных'),
-        content: const Text('Вы уверены, что хотите удалить все сеансы и купленные билеты из базы данных? Это действие необратимо.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Отмена'),
-          ),
-          TextButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              await _bookingRepository.clearAllData();
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Все данные успешно удалены из БД'))
-                );
-              }
-            },
-            child: const Text('Удалить', style: TextStyle(color: Colors.redAccent)),
-          ),
-        ],
       ),
     );
   }

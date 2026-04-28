@@ -1,8 +1,11 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/localization/app_strings.dart';
 import '../../../core/services/local_notification_service.dart';
 import '../../../core/settings/app_settings.dart';
+import '../../../data/repositories/admin_repository.dart';
+import 'admin_panel_page.dart';
 
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});
@@ -61,10 +64,10 @@ class SettingsPage extends StatelessWidget {
         SizedBox(height: 12),
         Text(
           'Авторы проекта:\n'
-              'Манат Ақжол\n'
-              'Қарабаев Бақдәулет\n'
-              'Болатов Қазыбек\n'
-              'Ералиев Елнур',
+          'Манат Ақжол\n'
+          'Қарабаев Бақдәулет\n'
+          'Болатов Қазыбек\n'
+          'Ералиев Елнур',
         ),
       ],
     );
@@ -72,6 +75,10 @@ class SettingsPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final user = FirebaseAuth.instance.currentUser;
+    final isAdmin = user?.email == 'manat11@mail.ru';
+    final adminRepository = AdminRepository();
+
     return ValueListenableBuilder<String>(
       valueListenable: AppSettings.language,
       builder: (context, language, child) {
@@ -100,9 +107,7 @@ class SettingsPage extends StatelessWidget {
                       ),
                       title: Text(AppStrings.t('notifications')),
                       subtitle: Text(
-                        enabled
-                            ? AppStrings.t('enabled')
-                            : AppStrings.t('disabled'),
+                        enabled ? AppStrings.t('enabled') : AppStrings.t('disabled'),
                       ),
                       value: enabled,
                       onChanged: (value) async {
@@ -122,9 +127,7 @@ class SettingsPage extends StatelessWidget {
                     margin: const EdgeInsets.only(bottom: 12),
                     child: SwitchListTile(
                       secondary: Icon(
-                        isDark
-                            ? Icons.dark_mode_outlined
-                            : Icons.light_mode_outlined,
+                        isDark ? Icons.dark_mode_outlined : Icons.light_mode_outlined,
                         color: const Color(0xFFE53935),
                       ),
                       title: Text(AppStrings.t('theme')),
@@ -139,6 +142,32 @@ class SettingsPage extends StatelessWidget {
                   );
                 },
               ),
+              if (isAdmin)
+                _SettingsTile(
+                  icon: Icons.admin_panel_settings_outlined,
+                  title: 'Панель администратора',
+                  subtitle: 'Управление кинотеатрами, залами и расписанием',
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const AdminPanelPage()),
+                    );
+                  },
+                ),
+              if (isAdmin)
+                _SettingsTile(
+                  icon: Icons.autorenew,
+                  title: 'Удалить прошлую генерацию и создать новую',
+                  subtitle: 'Пересоздать сессии, билеты и общее расписание',
+                  onTap: () async {
+                    await adminRepository.recreateGeneratedData();
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Новая генерация успешно создана')),
+                      );
+                    }
+                  },
+                ),
               _SettingsTile(
                 icon: Icons.info_outline,
                 title: AppStrings.t('about'),
@@ -168,9 +197,7 @@ class _LanguageItem extends StatelessWidget {
   Widget build(BuildContext context) {
     return ListTile(
       title: Text(title),
-      trailing: selected
-          ? const Icon(Icons.check, color: Color(0xFFE53935))
-          : null,
+      trailing: selected ? const Icon(Icons.check, color: Color(0xFFE53935)) : null,
       onTap: onTap,
     );
   }
@@ -194,10 +221,7 @@ class _SettingsTile extends StatelessWidget {
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 8,
-        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         leading: Icon(icon, color: const Color(0xFFE53935)),
         title: Text(title),
         subtitle: Text(subtitle),

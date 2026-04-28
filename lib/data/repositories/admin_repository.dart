@@ -1,0 +1,330 @@
+import 'dart:math';
+
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+
+import '../../domain/entities/movie.dart';
+import '../../domain/entities/session.dart';
+import 'tmdb_repository.dart';
+
+class AdminRepository {
+  AdminRepository({
+    FirebaseFirestore? firestore,
+    FirebaseAuth? auth,
+    TmdbRepository? tmdbRepository,
+  })  : _firestore = firestore ?? FirebaseFirestore.instance,
+        _auth = auth ?? FirebaseAuth.instance,
+        _tmdbRepository = tmdbRepository ?? TmdbRepository();
+
+  final FirebaseFirestore _firestore;
+  final FirebaseAuth _auth;
+  final TmdbRepository _tmdbRepository;
+
+  bool get isAdmin => _auth.currentUser?.email == 'manat11@mail.ru';
+
+  Future<void> recreateGeneratedData() async {
+    _ensureAdmin();
+
+    await _deleteCollection('sessions');
+    await _deleteCollection('tickets');
+    await _deleteCollection('global_schedule');
+
+    final homeData = await _tmdbRepository.loadHomeData();
+    final movies = homeData.movies.toList()..shuffle();
+    final selectedMovies = movies.take(25).toList();
+    if (selectedMovies.isEmpty) return;
+
+    final cinemas = await _loadCinemaConfigs();
+    if (cinemas.isEmpty) {
+      await _createDefaultCinemas();
+      return recreateGeneratedData();
+    }
+
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final random = Random();
+    final batch = _firestore.batch();
+
+    for (final cinema in cinemas) {
+      final halls = await cinema.reference.collection('halls').get();
+      if (halls.docs.isEmpty) continue;
+
+      for (final hallDoc in halls.docs) {
+        DateTime currentTime = today.add(const Duration(hours: 10));
+        final dayEnd = today.add(const Duration(hours: 24));
+        int lastMovieId = -1;
+
+        while (currentTime.add(const Duration(minutes: 60)).isBefore(dayEnd)) {
+          var candidates = selectedMovies.where((m) => m.id != lastMovieId).toList();
+          if (candidates.isEmpty) candidates = selectedMovies;
+
+          final movie = candidates[random.nextInt(candidates.length)];
+          lastMovieId = movie.id;
+          final duration = _parseDuration(movie.duration);
+          final end = currentTime.add(Duration(minutes: duration));
+          if (end.isAfter(dayEnd)) break;
+
+          final hallData = hallDoc.data();
+          final rows = (hallData['rows'] as num?)?.toInt() ?? 6;
+          final cols = (hallData['cols'] as num?)?.toInt() ?? 10;
+          final vipRows = List<int>.from(hallData['vipRows'] as List<dynamic>? ?? const [4, 5]);
+          final seats = _generateSeats(rows: rows, cols: cols, vipRows: vipRows);
+
+          final ref = _firestore.collection('sessions').doc();
+          batch.set(ref, {
+            'movieId': movie.id,
+            'movieTitle': movie.title,
+            'startTime': Timestamp.fromDate(currentTime),
+            'endTime': Timestamp.fromDate(end),
+            'cinemaName': cinema.data()['name'],
+            'cinemaId': cinema.id,
+            'cinemaAddress': cinema.data()['address'],
+            'hallId': hallDoc.id,
+            'hallName': hallData['name'] ?? hallDoc.id,
+            'seats': seats.map((e) => e.toMap()).toList(),
+          });
+
+          final cleanupMinutes = 20;
+          currentTime = end.add(Duration(minutes: cleanupMinutes));
+        }
+      }
+    }
+
+    await batch.commit();
+  }
+
+  Future<void> createCinema({required String name, required String address}) async {
+    _ensureAdmin();
+    await _firestore.collection('cinemas').add({
+      'name': name,
+      'address': address,
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  Future<void> deleteCinema(String cinemaId) async {
+    _ensureAdmin();
+    final ref = _firestore.collection('cinemas').doc(cinemaId);
+    final halls = await ref.collection('halls').get();
+    for (final hall in halls.docs) {
+      await hall.reference.delete();
+    }
+    await ref.delete();
+  }
+
+  Future<void> addHall({
+    required String cinemaId,
+    required String name,
+    required int rows,
+    required int cols,
+    required List<int> vipRows,
+  }) async {
+    _ensureAdmin();
+    await _firestore.collection('cinemas').doc(cinemaId).collection('halls').add({
+      'name': name,
+      'rows': rows,
+      'cols': cols,
+      'vipRows': vipRows,
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  Future<void> deleteHall({required String cinemaId, required String hallId}) async {
+    _ensureAdmin();
+    await _firestore.collection('cinemas').doc(cinemaId).collection('halls').doc(hallId).delete();
+  }
+
+  Future<List<MovieItem>> loadMovies() async {
+    final homeData = await _tmdbRepository.loadHomeData();
+    return homeData.movies;
+  }
+
+  Future<void> applyScheduleForMovie({
+    required MovieItem movie,
+    required List<HallRef> halls,
+    required int baseHour,
+    int startHour = 10,
+    int endHour = 24,
+    int cleanupMinutes = 20,
+  }) async {
+    _ensureAdmin();
+    final now = DateTime.now();
+    final day = DateTime(now.year, now.month, now.day);
+    final duration = _parseDuration(movie.duration);
+
+    final batch = _firestore.batch();
+
+    for (final hall in halls) {
+      DateTime currentStart = day.add(Duration(hours: baseHour));
+      while (true) {
+        final end = currentStart.add(Duration(minutes: duration));
+        if (end.hour >= endHour && end.minute > 0) break;
+
+        final seats = _generateSeats(rows: hall.rows, cols: hall.cols, vipRows: hall.vipRows);
+        final sessionRef = _firestore.collection('sessions').doc();
+        batch.set(sessionRef, {
+          'movieId': movie.id,
+          'movieTitle': movie.title,
+          'startTime': Timestamp.fromDate(currentStart),
+          'endTime': Timestamp.fromDate(end),
+          'cinemaName': hall.cinemaName,
+          'cinemaId': hall.cinemaId,
+          'cinemaAddress': hall.cinemaAddress,
+          'hallId': hall.hallId,
+          'hallName': hall.hallName,
+          'seats': seats.map((e) => e.toMap()).toList(),
+        });
+
+        final scheduleRef = _firestore.collection('global_schedule').doc();
+        batch.set(scheduleRef, {
+          'movieId': movie.id,
+          'movieTitle': movie.title,
+          'cinemaId': hall.cinemaId,
+          'cinemaName': hall.cinemaName,
+          'hallId': hall.hallId,
+          'hallName': hall.hallName,
+          'startTime': Timestamp.fromDate(currentStart),
+          'endTime': Timestamp.fromDate(end),
+          'generatedAt': FieldValue.serverTimestamp(),
+        });
+
+        currentStart = end.add(Duration(minutes: cleanupMinutes));
+        if (currentStart.hour < startHour || currentStart.hour >= endHour) {
+          break;
+        }
+      }
+    }
+
+    await batch.commit();
+  }
+
+  Future<void> clearMovieSchedule(int movieId) async {
+    _ensureAdmin();
+
+    final sessions = await _firestore.collection('sessions').where('movieId', isEqualTo: movieId).get();
+    final schedule = await _firestore.collection('global_schedule').where('movieId', isEqualTo: movieId).get();
+
+    final batch = _firestore.batch();
+    for (final doc in sessions.docs) {
+      batch.delete(doc.reference);
+    }
+    for (final doc in schedule.docs) {
+      batch.delete(doc.reference);
+    }
+    await batch.commit();
+  }
+
+  Stream<QuerySnapshot<Map<String, dynamic>>> cinemasStream() {
+    return _firestore.collection('cinemas').orderBy('createdAt', descending: false).snapshots();
+  }
+
+  Stream<QuerySnapshot<Map<String, dynamic>>> hallsStream(String cinemaId) {
+    return _firestore.collection('cinemas').doc(cinemaId).collection('halls').orderBy('createdAt').snapshots();
+  }
+
+  Stream<QuerySnapshot<Map<String, dynamic>>> movieScheduleStream(int movieId) {
+    return _firestore
+        .collection('global_schedule')
+        .where('movieId', isEqualTo: movieId)
+        .orderBy('startTime')
+        .snapshots();
+  }
+
+  Future<void> _createDefaultCinemas() async {
+    final items = [
+      {'name': 'Kinopark 8 Saryarka', 'address': 'пр. Туран, 24'},
+      {'name': 'Chaplin Khan Shatyr', 'address': 'пр. Туран, 37'},
+      {'name': 'Keruen Cinema', 'address': 'ул. Достык, 9'},
+    ];
+    for (final cinema in items) {
+      final ref = await _firestore.collection('cinemas').add({
+        'name': cinema['name'],
+        'address': cinema['address'],
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+      for (int i = 1; i <= 3; i++) {
+        await ref.collection('halls').add({
+          'name': 'Зал $i',
+          'rows': 6 + i,
+          'cols': 10,
+          'vipRows': [5, 6],
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+      }
+    }
+  }
+
+  Future<List<QueryDocumentSnapshot<Map<String, dynamic>>>> _loadCinemaConfigs() async {
+    final snapshot = await _firestore.collection('cinemas').get();
+    return snapshot.docs;
+  }
+
+  void _ensureAdmin() {
+    if (!isAdmin) {
+      throw StateError('Доступ только для администратора');
+    }
+  }
+
+  List<Seat> _generateSeats({required int rows, required int cols, required List<int> vipRows}) {
+    final seats = <Seat>[];
+    for (int row = 1; row <= rows; row++) {
+      for (int col = 1; col <= cols; col++) {
+        seats.add(
+          Seat(
+            id: 'r${row}c$col',
+            row: row,
+            column: col,
+            isAvailable: true,
+            isVip: vipRows.contains(row),
+          ),
+        );
+      }
+    }
+    return seats;
+  }
+
+  Future<void> _deleteCollection(String name) async {
+    final snapshot = await _firestore.collection(name).get();
+    if (snapshot.docs.isEmpty) return;
+    final batch = _firestore.batch();
+    for (final doc in snapshot.docs) {
+      batch.delete(doc.reference);
+    }
+    await batch.commit();
+  }
+
+  int _parseDuration(String durationStr) {
+    try {
+      final hoursMatch = RegExp(r'(\d+)ч').firstMatch(durationStr);
+      final minsMatch = RegExp(r'(\d+)м').firstMatch(durationStr);
+      int total = 0;
+      if (hoursMatch != null) total += int.parse(hoursMatch.group(1)!) * 60;
+      if (minsMatch != null) total += int.parse(minsMatch.group(1)!);
+      return total > 0 ? total : 120;
+    } catch (_) {
+      return 120;
+    }
+  }
+}
+
+class HallRef {
+  const HallRef({
+    required this.cinemaId,
+    required this.cinemaName,
+    required this.cinemaAddress,
+    required this.hallId,
+    required this.hallName,
+    required this.rows,
+    required this.cols,
+    required this.vipRows,
+  });
+
+  final String cinemaId;
+  final String cinemaName;
+  final String cinemaAddress;
+  final String hallId;
+  final String hallName;
+  final int rows;
+  final int cols;
+  final List<int> vipRows;
+}
