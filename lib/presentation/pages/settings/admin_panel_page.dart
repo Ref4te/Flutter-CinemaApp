@@ -242,6 +242,10 @@ class _ScheduleManagementTab extends StatefulWidget {
 
 class _ScheduleManagementTabState extends State<_ScheduleManagementTab> {
   final ScheduleCellsService _cellsService = ScheduleCellsService();
+  final TextEditingController _adultPriceController = TextEditingController(text: '2500');
+  final TextEditingController _studentPriceController = TextEditingController(text: '1800');
+  final TextEditingController _childPriceController = TextEditingController(text: '1200');
+  final TextEditingController _vipPriceController = TextEditingController(text: '5000');
 
   MovieItem? _selectedMovie;
   MovieMeta? _movieMeta;
@@ -262,6 +266,15 @@ class _ScheduleManagementTabState extends State<_ScheduleManagementTab> {
   void initState() {
     super.initState();
     _loadInitial();
+  }
+
+  @override
+  void dispose() {
+    _adultPriceController.dispose();
+    _studentPriceController.dispose();
+    _childPriceController.dispose();
+    _vipPriceController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadInitial() async {
@@ -366,6 +379,22 @@ class _ScheduleManagementTabState extends State<_ScheduleManagementTab> {
           if (_selectedMovie != null)
             Text('Возраст: $age • Длительность: ${duration} мин', style: const TextStyle(fontWeight: FontWeight.w600)),
           const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(child: _buildPriceField(_adultPriceController, 'Взрослый')),
+              const SizedBox(width: 8),
+              Expanded(child: _buildPriceField(_studentPriceController, 'Студенческий')),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(child: _buildPriceField(_childPriceController, 'Детский')),
+              const SizedBox(width: 8),
+              Expanded(child: _buildPriceField(_vipPriceController, 'VIP')),
+            ],
+          ),
+          const SizedBox(height: 10),
           Expanded(
             child: ListView(
               children: grouped.entries.map((entry) {
@@ -440,6 +469,12 @@ class _ScheduleManagementTabState extends State<_ScheduleManagementTab> {
           const SizedBox(height: 10),
           Row(
             children: [
+              OutlinedButton.icon(
+                onPressed: _saving ? null : _resetSessionsForDate,
+                icon: const Icon(Icons.restart_alt),
+                label: const Text('Обнулить сеансы'),
+              ),
+              const SizedBox(width: 8),
               OutlinedButton.icon(
                 onPressed: _undoStack.isEmpty ? null : _undo,
                 icon: const Icon(Icons.undo),
@@ -572,12 +607,60 @@ class _ScheduleManagementTabState extends State<_ScheduleManagementTab> {
         movie: _selectedMovie!,
         hall: hallRef,
         starts: hallEntry.value.map((e) => e.startTime).toList(),
+        prices: _readPrices(),
       );
     }
 
     if (!mounted) return;
     setState(() => _saving = false);
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Расписание сохранено')));
+  }
+
+  Future<void> _resetSessionsForDate() async {
+    final shouldReset = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Обнулить сеансы?'),
+        content: const Text('Все сеансы на выбранную дату будут удалены.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Отмена')),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Обнулить')),
+        ],
+      ),
+    );
+
+    if (shouldReset != true) return;
+    setState(() => _saving = true);
+
+    final snapshot = _grid.map((e) => e).toList();
+    _undoStack.add(snapshot);
+
+    final movieIds = _grid
+        .where((cell) => cell.movieId != null)
+        .map((cell) => cell.movieId!)
+        .toSet();
+
+    for (final movieId in movieIds) {
+      await widget.adminRepository.clearMovieScheduleForDate(
+        movieId: movieId,
+        date: _selectedDate,
+      );
+    }
+
+    final clearedGrid = _grid
+        .map((cell) => cell.copyWith(movieId: null, movieTitle: null))
+        .toList();
+
+    await _cellsService.saveGrid(clearedGrid);
+
+    if (!mounted) return;
+    setState(() {
+      _grid = clearedGrid;
+      _saving = false;
+      _selectedCellId = null;
+      _conflictCellIds = <String>{};
+    });
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Сеансы обнулены')));
   }
 
   Future<List<_HallOption>> _loadHallOptions(QuerySnapshot<Map<String, dynamic>> cinemasSnapshot) async {
@@ -621,6 +704,33 @@ class _ScheduleManagementTabState extends State<_ScheduleManagementTab> {
   }
 
   String _formatTime(DateTime date) => '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+
+  Widget _buildPriceField(TextEditingController controller, String label) {
+    return TextFormField(
+      controller: controller,
+      keyboardType: TextInputType.number,
+      decoration: InputDecoration(
+        labelText: '$label (₸)',
+        border: const OutlineInputBorder(),
+        isDense: true,
+      ),
+    );
+  }
+
+  SessionPrices _readPrices() {
+    int parse(TextEditingController controller, int fallback) {
+      final value = int.tryParse(controller.text.trim());
+      if (value == null || value <= 0) return fallback;
+      return value;
+    }
+
+    return SessionPrices(
+      adult: parse(_adultPriceController, 2500),
+      student: parse(_studentPriceController, 1800),
+      child: parse(_childPriceController, 1200),
+      vip: parse(_vipPriceController, 5000),
+    );
+  }
 
   int _parseDuration(String durationStr) {
     final hoursMatch = RegExp(r'(\d+)ч').firstMatch(durationStr);
