@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:flutter_timezone/flutter_timezone.dart';
+import 'package:timezone/data/latest.dart' as tz;
+import 'package:timezone/timezone.dart' as tz;
 
 import '../../presentation/pages/navigation/main_navigation_screen.dart';
 
@@ -12,6 +15,7 @@ class LocalNotificationService {
   final FlutterLocalNotificationsPlugin _plugin = FlutterLocalNotificationsPlugin();
 
   bool _openTicketsOnStart = false;
+  bool _timezoneInitialized = false;
 
   Future<void> initialize() async {
     const android = AndroidInitializationSettings('@mipmap/ic_launcher');
@@ -24,6 +28,8 @@ class LocalNotificationService {
       onDidReceiveNotificationResponse: _onNotificationResponse,
       onDidReceiveBackgroundNotificationResponse: _onBackgroundNotificationResponse,
     );
+
+    await _configureLocalTimezone();
 
     final launchDetails = await _plugin.getNotificationAppLaunchDetails();
     final launchPayload = launchDetails?.notificationResponse?.payload;
@@ -55,11 +61,13 @@ class LocalNotificationService {
       return;
     }
 
-    await _plugin.schedule(
+    final scheduledDate = tz.TZDateTime.from(scheduledAt, tz.local);
+
+    await _plugin.zonedSchedule(
       ticketId,
       'Скоро сеанс: $movieTitle',
       'Через час начало. Время: ${_formatTime(sessionStart)} • Адрес: $cinemaAddress',
-      scheduledAt,
+      scheduledDate,
       const NotificationDetails(
         android: AndroidNotificationDetails(
           'ticket_reminders',
@@ -72,9 +80,26 @@ class LocalNotificationService {
       ),
       payload: 'open_tickets',
       androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      uiLocalNotificationDateInterpretation:
+          UILocalNotificationDateInterpretation.absoluteTime,
     );
   }
 
+
+  Future<void> _configureLocalTimezone() async {
+    if (_timezoneInitialized) return;
+
+    tz.initializeTimeZones();
+    try {
+      final timezoneName = await FlutterTimezone.getLocalTimezone();
+      final location = tz.getLocation(timezoneName);
+      tz.setLocalLocation(location);
+    } catch (_) {
+      tz.setLocalLocation(tz.getLocation('UTC'));
+    }
+
+    _timezoneInitialized = true;
+  }
   String _formatTime(DateTime value) {
     final hour = value.hour.toString().padLeft(2, '0');
     final minute = value.minute.toString().padLeft(2, '0');
