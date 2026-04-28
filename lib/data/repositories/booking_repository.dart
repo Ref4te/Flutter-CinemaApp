@@ -257,10 +257,27 @@ class BookingRepository {
         .snapshots()
         .map((snapshot) {
           final docs = snapshot.docs.map((doc) => doc.data()).toList();
+          final now = DateTime.now();
           docs.sort((a, b) {
-            final aTime = (a['created_at'] as Timestamp?) ?? Timestamp.now();
-            final bTime = (b['created_at'] as Timestamp?) ?? Timestamp.now();
-            return bTime.compareTo(aTime);
+            final aStart = (a['startTime'] as Timestamp?)?.toDate();
+            final bStart = (b['startTime'] as Timestamp?)?.toDate();
+
+            if (aStart == null && bStart == null) return 0;
+            if (aStart == null) return 1;
+            if (bStart == null) return -1;
+
+            final aPast = aStart.isBefore(now);
+            final bPast = bStart.isBefore(now);
+
+            if (aPast != bPast) {
+              return aPast ? 1 : -1;
+            }
+
+            if (!aPast) {
+              return aStart.compareTo(bStart);
+            }
+
+            return bStart.compareTo(aStart);
           });
           return docs;
         });

@@ -513,17 +513,6 @@ class _ScheduleManagementTabState extends State<_ScheduleManagementTab> {
       updated[c.id] = c.copyWith(startTime: t, movieId: _selectedMovie!.id, movieTitle: _selectedMovie!.title);
     }
 
-    t = pivotTime;
-    for (int i = pivotIndex - 1; i >= 0; i--) {
-      final c = sorted[i];
-      t = _roundTo10(t.subtract(gap));
-      if (c.movieId != null && c.movieId != _selectedMovie!.id) {
-        conflicts.add(c.id);
-        break;
-      }
-      updated[c.id] = c.copyWith(startTime: t, movieId: _selectedMovie!.id, movieTitle: _selectedMovie!.title);
-    }
-
     setState(() {
       _grid = _grid.map((cell) => updated[cell.id] ?? cell).toList();
       _conflictCellIds = conflicts;
