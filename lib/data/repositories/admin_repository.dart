@@ -65,10 +65,7 @@ class AdminRepository {
           if (end.isAfter(dayEnd)) break;
 
           final hallData = hallDoc.data();
-          final rows = (hallData['rows'] as num?)?.toInt() ?? 6;
-          final cols = (hallData['cols'] as num?)?.toInt() ?? 10;
-          final vipRows = List<int>.from(hallData['vipRows'] as List<dynamic>? ?? const [4, 5]);
-          final seats = _generateSeats(rows: rows, cols: cols, vipRows: vipRows);
+          final seats = _buildSeatsFromHallData(hallData);
 
           final ref = _firestore.collection('sessions').doc();
           batch.set(ref, {
@@ -125,7 +122,25 @@ class AdminRepository {
       'rows': rows,
       'cols': cols,
       'vipRows': vipRows,
+      'layout': _emptyLayout(rows: rows, cols: cols),
       'createdAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  Future<void> updateHallLayout({
+    required String cinemaId,
+    required String hallId,
+    required int rows,
+    required int cols,
+    required List<Map<String, dynamic>> layout,
+  }) async {
+    _ensureAdmin();
+    await _firestore.collection('cinemas').doc(cinemaId).collection('halls').doc(hallId).update({
+      'rows': rows,
+      'cols': cols,
+      'layout': layout,
+      'vipRows': const <int>[],
+      'updatedAt': FieldValue.serverTimestamp(),
     });
   }
 
@@ -160,7 +175,7 @@ class AdminRepository {
         final end = currentStart.add(Duration(minutes: duration));
         if (end.hour >= endHour && end.minute > 0) break;
 
-        final seats = _generateSeats(rows: hall.rows, cols: hall.cols, vipRows: hall.vipRows);
+        final seats = _buildSeatsFromRef(hall);
         final sessionRef = _firestore.collection('sessions').doc();
         batch.set(sessionRef, {
           'movieId': movie.id,
@@ -245,9 +260,10 @@ class AdminRepository {
       for (int i = 1; i <= 3; i++) {
         await ref.collection('halls').add({
           'name': 'Зал $i',
-          'rows': 6 + i,
-          'cols': 10,
-          'vipRows': [5, 6],
+          'rows': 12,
+          'cols': 12,
+          'vipRows': const <int>[],
+          'layout': _emptyLayout(rows: 12, cols: 12),
           'createdAt': FieldValue.serverTimestamp(),
         });
       }
@@ -263,6 +279,84 @@ class AdminRepository {
     if (!isAdmin) {
       throw StateError('Доступ только для администратора');
     }
+  }
+
+  List<Seat> _buildSeatsFromRef(HallRef hall) {
+    if (hall.layout.isNotEmpty) {
+      return hall.layout
+          .where((item) => item.isEnabled)
+          .map(
+            (item) => Seat(
+              id: 'r${item.row}c${item.col}',
+              row: item.row,
+              column: item.col,
+              isAvailable: true,
+              isVip: item.isVip,
+            ),
+          )
+          .toList();
+    }
+
+    return _generateSeats(rows: hall.rows, cols: hall.cols, vipRows: hall.vipRows);
+  }
+
+  List<Seat> _buildSeatsFromHallData(Map<String, dynamic> hallData) {
+    final layoutRaw = hallData['layout'] as List<dynamic>?;
+    if (layoutRaw != null && layoutRaw.isNotEmpty) {
+      return layoutRaw
+          .cast<Map<String, dynamic>>()
+          .where((item) => item['isEnabled'] == true)
+          .map(
+            (item) => Seat(
+              id: 'r${item['row']}c${item['col']}',
+              row: (item['row'] as num).toInt(),
+              column: (item['col'] as num).toInt(),
+              isAvailable: true,
+              isVip: item['isVip'] == true,
+            ),
+          )
+          .toList();
+    }
+
+    final rows = (hallData['rows'] as num?)?.toInt() ?? 6;
+    final cols = (hallData['cols'] as num?)?.toInt() ?? 10;
+    final vipRows = List<int>.from(hallData['vipRows'] as List<dynamic>? ?? const [4, 5]);
+    return _generateSeats(rows: rows, cols: cols, vipRows: vipRows);
+  }
+
+  List<SeatLayoutCell> mapLayout(List<dynamic>? raw, {required int rows, required int cols}) {
+    if (raw == null || raw.isEmpty) {
+      return List.generate(rows * cols, (index) {
+        final row = index ~/ cols + 1;
+        final col = index % cols + 1;
+        return SeatLayoutCell(row: row, col: col, isEnabled: false, isVip: false);
+      });
+    }
+
+    return raw
+        .cast<Map<String, dynamic>>()
+        .map(
+          (item) => SeatLayoutCell(
+            row: (item['row'] as num).toInt(),
+            col: (item['col'] as num).toInt(),
+            isEnabled: item['isEnabled'] == true,
+            isVip: item['isVip'] == true,
+          ),
+        )
+        .toList();
+  }
+
+  List<Map<String, dynamic>> _emptyLayout({required int rows, required int cols}) {
+    return List.generate(rows * cols, (index) {
+      final row = index ~/ cols + 1;
+      final col = index % cols + 1;
+      return {
+        'row': row,
+        'col': col,
+        'isEnabled': false,
+        'isVip': false,
+      };
+    });
   }
 
   List<Seat> _generateSeats({required int rows, required int cols, required List<int> vipRows}) {
@@ -317,6 +411,7 @@ class HallRef {
     required this.rows,
     required this.cols,
     required this.vipRows,
+    required this.layout,
   });
 
   final String cinemaId;
@@ -327,4 +422,37 @@ class HallRef {
   final int rows;
   final int cols;
   final List<int> vipRows;
+  final List<SeatLayoutCell> layout;
+}
+
+class SeatLayoutCell {
+  const SeatLayoutCell({
+    required this.row,
+    required this.col,
+    required this.isEnabled,
+    required this.isVip,
+  });
+
+  final int row;
+  final int col;
+  final bool isEnabled;
+  final bool isVip;
+
+  SeatLayoutCell copyWith({bool? isEnabled, bool? isVip}) {
+    return SeatLayoutCell(
+      row: row,
+      col: col,
+      isEnabled: isEnabled ?? this.isEnabled,
+      isVip: isVip ?? this.isVip,
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'row': row,
+      'col': col,
+      'isEnabled': isEnabled,
+      'isVip': isVip,
+    };
+  }
 }
