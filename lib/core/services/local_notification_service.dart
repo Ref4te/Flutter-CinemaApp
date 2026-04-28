@@ -20,7 +20,11 @@ class LocalNotificationService {
 
   Future<void> initialize() async {
     const android = AndroidInitializationSettings('@mipmap/ic_launcher');
-    const ios = DarwinInitializationSettings();
+    const ios = DarwinInitializationSettings(
+      defaultPresentAlert: true,
+      defaultPresentBadge: true,
+      defaultPresentSound: true,
+    );
 
     const settings = InitializationSettings(android: android, iOS: ios);
 
@@ -85,7 +89,11 @@ class LocalNotificationService {
           importance: Importance.max,
           priority: Priority.high,
         ),
-        iOS: DarwinNotificationDetails(),
+        iOS: DarwinNotificationDetails(
+          presentAlert: true,
+          presentBadge: true,
+          presentSound: true,
+        ),
       ),
       payload: 'open_tickets',
       androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
