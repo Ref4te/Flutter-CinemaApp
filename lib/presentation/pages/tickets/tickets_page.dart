@@ -105,12 +105,25 @@ class TicketsPage extends StatelessWidget {
                         .map(
                           (s) => Padding(
                             padding: const EdgeInsets.only(bottom: 2),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text('Ряд ${s['row']} • Место ${s['column']} (${s['type']})'),
-                                Text('${s['price']} ₸', style: const TextStyle(fontWeight: FontWeight.bold)),
-                              ],
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF7F7F7),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    'Ряд ${s['row']} • Место ${s['column']} (${s['type']})',
+                                    style: const TextStyle(color: Color(0xFF1A1A1A)),
+                                  ),
+                                  Text(
+                                    '${s['price']} ₸',
+                                    style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A)),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                         )

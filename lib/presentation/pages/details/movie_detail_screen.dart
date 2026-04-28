@@ -186,15 +186,15 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                       pinned: true,
                       delegate: _TabsHeaderDelegate(
                         child: Container(
-                          color: const Color(0xFF121212),
+                          color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF121212) : Colors.white,
                           padding: const EdgeInsets.symmetric(horizontal: 16),
                           alignment: Alignment.centerLeft,
                           child: TabBar(
                             isScrollable: false,
                             tabAlignment: TabAlignment.fill,
                             dividerColor: Colors.transparent,
-                            labelColor: Colors.white,
-                            unselectedLabelColor: const Color(0xFF888888),
+                            labelColor: Theme.of(context).brightness == Brightness.dark ? Colors.white : const Color(0xFF1A1A1A),
+                            unselectedLabelColor: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF888888) : const Color(0xFF777777),
                             indicatorColor: const Color(0xFFE53935),
                             indicatorWeight: 4,
                             labelStyle: const TextStyle(
@@ -274,6 +274,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
   }
 
   Widget _buildInfoPanel(MovieFullDetailsData details) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final genres = details.genres.isNotEmpty
         ? details.genres.take(3).toList(growable: false)
         : <String>[widget.movie.category];
@@ -317,9 +318,9 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                           label: Text(genre),
                           visualDensity: VisualDensity.compact,
                           materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                          backgroundColor: const Color(0xFF1E1E1E),
-                          side: const BorderSide(color: Color(0xFF353535)),
-                          labelStyle: const TextStyle(color: Color(0xFFD0D0D0)),
+                          backgroundColor: isDark ? const Color(0xFF2A2A2A) : const Color(0xFFFFF1F1),
+                          side: BorderSide(color: isDark ? const Color(0xFF474747) : const Color(0xFFFFCFCF)),
+                          labelStyle: TextStyle(color: isDark ? const Color(0xFFE4E4E4) : const Color(0xFF9A1F1F)),
                         ),
                       )
                       .toList(),
@@ -426,7 +427,11 @@ class _AboutMovieTab extends StatelessWidget {
       children: [
         Text(
           description,
-          style: const TextStyle(fontSize: 16, height: 1.45, color: Color(0xFFCFCFCF)),
+          style: TextStyle(
+            fontSize: 16,
+            height: 1.45,
+            color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFFC0C0C0) : const Color(0xFF444444),
+          ),
         ),
         if (details.tagline != null) ...[
           const SizedBox(height: 10),
@@ -570,9 +575,9 @@ class _ReviewsTab extends StatelessWidget {
         Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            color: const Color(0xFF1E1E1E),
+            color: const Color(0xFF2A1B1B),
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: const Color(0xFF313131)),
+            border: Border.all(color: const Color(0xFFE53935)),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
