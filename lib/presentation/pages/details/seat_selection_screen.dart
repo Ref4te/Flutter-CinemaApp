@@ -269,6 +269,9 @@ class _SeatSelectionScreenState extends State<SeatSelectionScreen> {
   }
 
   Widget _buildCartPanel(MovieSession session) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final chipBg = isDark ? const Color(0xFF262626) : const Color(0xFFEFEFEF);
+    final chipText = isDark ? Colors.white : const Color(0xFF1A1A1A);
     return Column(
       key: const ValueKey('cart-panel'),
       mainAxisSize: MainAxisSize.min,
@@ -289,9 +292,9 @@ class _SeatSelectionScreenState extends State<SeatSelectionScreen> {
               return Container(
                 margin: const EdgeInsets.only(right: 8),
                 child: Chip(
-                  backgroundColor: const Color(0xFF262626),
-                  label: Text('Р${seat.row}-М${seat.column}'),
-                  deleteIcon: const Icon(Icons.close, size: 16),
+                  backgroundColor: chipBg,
+                  label: Text('Р${seat.row}-М${seat.column}', style: TextStyle(color: chipText)),
+                  deleteIcon: Icon(Icons.close, size: 16, color: chipText),
                   onDeleted: () => _removeSeat(seatId),
                 ),
               );

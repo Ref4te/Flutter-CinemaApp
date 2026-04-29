@@ -565,6 +565,7 @@ class _ReviewsTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final reviews = details.reviews;
     final ratingText = details.voteAverage > 0 ? '${details.voteAverage.toStringAsFixed(1)} / 10' : '— / 10';
     final reviewCountText = details.voteCount > 0 ? 'на основе ${details.voteCount} оценок' : 'оценки пока недоступны';
@@ -575,7 +576,7 @@ class _ReviewsTab extends StatelessWidget {
         Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            color: const Color(0xFF2A1B1B),
+            color: isDark ? const Color(0xFF2A1B1B) : const Color(0xFFFFF1F1),
             borderRadius: BorderRadius.circular(14),
             border: Border.all(color: const Color(0xFFE53935)),
           ),
@@ -584,7 +585,7 @@ class _ReviewsTab extends StatelessWidget {
             children: [
               Text(ratingText, style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w800)),
               const SizedBox(height: 4),
-              Text(reviewCountText, style: const TextStyle(color: Color(0xFFB0B0B0))),
+              Text(reviewCountText, style: TextStyle(color: isDark ? const Color(0xFFB0B0B0) : const Color(0xFF7A7A7A))),
             ],
           ),
         ),
@@ -608,13 +609,14 @@ class _ReviewCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color(0xFF1A1A1A),
+        color: isDark ? const Color(0xFF1A1A1A) : Colors.white,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFF2E2E2E)),
+        border: Border.all(color: isDark ? const Color(0xFF2E2E2E) : const Color(0xFFE4E4E4)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -638,7 +640,10 @@ class _ReviewCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 8),
-          Text(review.content, style: const TextStyle(color: Color(0xFFD4D4D4), height: 1.35)),
+          Text(
+            review.content,
+            style: TextStyle(color: isDark ? const Color(0xFFD4D4D4) : const Color(0xFF333333), height: 1.35),
+          ),
         ],
       ),
     );
