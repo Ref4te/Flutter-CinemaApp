@@ -174,6 +174,7 @@ class BookingRepository {
 
       final data = snapshot.data() as Map<String, dynamic>;
       final seatsList = List<Map<String, dynamic>>.from(data['seats']);
+      final prices = Map<String, dynamic>.from(data['prices'] as Map<String, dynamic>? ?? const {});
       
       List<Map<String, dynamic>> bookedSeatsData = [];
       int totalBookingPrice = 0;
@@ -188,7 +189,7 @@ class BookingRepository {
         }
 
         final bool isVip = seatsList[seatIndex]['isVip'] ?? false;
-        int price = isVip ? 5000 : _getPriceByTariff(tariff);
+        int price = isVip ? _vipPrice(prices) : _getPriceByTariff(tariff, prices);
 
         seatsList[seatIndex]['isAvailable'] = false;
         
@@ -238,13 +239,21 @@ class BookingRepository {
     return success;
   }
 
-  int _getPriceByTariff(String tariff) {
+  int _getPriceByTariff(String tariff, Map<String, dynamic> prices) {
     switch (tariff.toLowerCase()) {
-      case 'детский': return 1200;
-      case 'студенческий': return 1800;
-      case 'взрослый': return 2500;
-      default: return 2500;
+      case 'детский': return _readPrice(prices['child'], 1200);
+      case 'студенческий': return _readPrice(prices['student'], 1800);
+      case 'взрослый': return _readPrice(prices['adult'], 2500);
+      default: return _readPrice(prices['adult'], 2500);
     }
+  }
+
+  int _vipPrice(Map<String, dynamic> prices) => _readPrice(prices['vip'], 5000);
+
+  int _readPrice(dynamic value, int fallback) {
+    if (value is int && value >= 0) return value;
+    if (value is num && value >= 0) return value.toInt();
+    return fallback;
   }
 
   Stream<List<Map<String, dynamic>>> getUserTickets() {

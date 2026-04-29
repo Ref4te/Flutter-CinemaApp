@@ -186,15 +186,15 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                       pinned: true,
                       delegate: _TabsHeaderDelegate(
                         child: Container(
-                          color: const Color(0xFF121212),
+                          color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF121212) : Colors.white,
                           padding: const EdgeInsets.symmetric(horizontal: 16),
                           alignment: Alignment.centerLeft,
                           child: TabBar(
                             isScrollable: false,
                             tabAlignment: TabAlignment.fill,
                             dividerColor: Colors.transparent,
-                            labelColor: Colors.white,
-                            unselectedLabelColor: const Color(0xFF888888),
+                            labelColor: Theme.of(context).brightness == Brightness.dark ? Colors.white : const Color(0xFF1A1A1A),
+                            unselectedLabelColor: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF888888) : const Color(0xFF777777),
                             indicatorColor: const Color(0xFFE53935),
                             indicatorWeight: 4,
                             labelStyle: const TextStyle(
@@ -274,6 +274,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
   }
 
   Widget _buildInfoPanel(MovieFullDetailsData details) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final genres = details.genres.isNotEmpty
         ? details.genres.take(3).toList(growable: false)
         : <String>[widget.movie.category];
@@ -317,9 +318,9 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                           label: Text(genre),
                           visualDensity: VisualDensity.compact,
                           materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                          backgroundColor: const Color(0xFF1E1E1E),
-                          side: const BorderSide(color: Color(0xFF353535)),
-                          labelStyle: const TextStyle(color: Color(0xFFD0D0D0)),
+                          backgroundColor: isDark ? const Color(0xFF2A2A2A) : const Color(0xFFFFF1F1),
+                          side: BorderSide(color: isDark ? const Color(0xFF474747) : const Color(0xFFFFCFCF)),
+                          labelStyle: TextStyle(color: isDark ? const Color(0xFFE4E4E4) : const Color(0xFF9A1F1F)),
                         ),
                       )
                       .toList(),
@@ -426,7 +427,11 @@ class _AboutMovieTab extends StatelessWidget {
       children: [
         Text(
           description,
-          style: const TextStyle(fontSize: 16, height: 1.45, color: Color(0xFFCFCFCF)),
+          style: TextStyle(
+            fontSize: 16,
+            height: 1.45,
+            color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFFC0C0C0) : const Color(0xFF444444),
+          ),
         ),
         if (details.tagline != null) ...[
           const SizedBox(height: 10),
@@ -560,6 +565,7 @@ class _ReviewsTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final reviews = details.reviews;
     final ratingText = details.voteAverage > 0 ? '${details.voteAverage.toStringAsFixed(1)} / 10' : '— / 10';
     final reviewCountText = details.voteCount > 0 ? 'на основе ${details.voteCount} оценок' : 'оценки пока недоступны';
@@ -570,16 +576,16 @@ class _ReviewsTab extends StatelessWidget {
         Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            color: const Color(0xFF1E1E1E),
+            color: isDark ? const Color(0xFF2A1B1B) : const Color(0xFFFFF1F1),
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: const Color(0xFF313131)),
+            border: Border.all(color: const Color(0xFFE53935)),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(ratingText, style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w800)),
               const SizedBox(height: 4),
-              Text(reviewCountText, style: const TextStyle(color: Color(0xFFB0B0B0))),
+              Text(reviewCountText, style: TextStyle(color: isDark ? const Color(0xFFB0B0B0) : const Color(0xFF7A7A7A))),
             ],
           ),
         ),
@@ -603,13 +609,14 @@ class _ReviewCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color(0xFF1A1A1A),
+        color: isDark ? const Color(0xFF1A1A1A) : Colors.white,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFF2E2E2E)),
+        border: Border.all(color: isDark ? const Color(0xFF2E2E2E) : const Color(0xFFE4E4E4)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -633,7 +640,10 @@ class _ReviewCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 8),
-          Text(review.content, style: const TextStyle(color: Color(0xFFD4D4D4), height: 1.35)),
+          Text(
+            review.content,
+            style: TextStyle(color: isDark ? const Color(0xFFD4D4D4) : const Color(0xFF333333), height: 1.35),
+          ),
         ],
       ),
     );
@@ -665,6 +675,12 @@ class _TicketsTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final panelColor = isDark ? const Color(0xFF1A1A1A) : Colors.white;
+    final panelBorder = isDark ? const Color(0xFF353535) : const Color(0xFFE4E4E4);
+    final chipIdle = isDark ? const Color(0xFF232323) : const Color(0xFFF3F3F3);
+    final textColor = isDark ? Colors.white : const Color(0xFF1A1A1A);
+
     final items = <(_TicketDateFilter, String)>[
       (_TicketDateFilter.today, 'Сегодня'),
       (_TicketDateFilter.tomorrow, 'Завтра'),
@@ -687,9 +703,9 @@ class _TicketsTab extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(4),
               decoration: BoxDecoration(
-                color: const Color(0xFF1A1A1A),
+                color: panelColor,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFF353535)),
+                border: Border.all(color: panelBorder),
               ),
               child: Row(
                 children: items.map((item) {
@@ -710,13 +726,13 @@ class _TicketsTab extends StatelessWidget {
                           decoration: BoxDecoration(
                             color: isSelected
                                 ? const Color(0xFFE53935)
-                                : const Color(0xFF232323),
+                                : chipIdle,
                             borderRadius: BorderRadius.circular(9),
                           ),
                           child: Text(
                             title,
                             style: TextStyle(
-                              color: Colors.white,
+                              color: isSelected ? Colors.white : textColor,
                               fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
                             ),
                           ),
@@ -739,9 +755,9 @@ class _TicketsTab extends StatelessWidget {
               return Container(
                 margin: const EdgeInsets.only(bottom: 10),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF1A1A1A),
+                  color: panelColor,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFF2E2E2E)),
+                  border: Border.all(color: panelBorder),
                 ),
                 child: ExpansionTile(
                   initiallyExpanded: true,
@@ -769,7 +785,9 @@ class _TicketsTab extends StatelessWidget {
                           },
                           style: OutlinedButton.styleFrom(
                             side: const BorderSide(color: Color(0xFF4A4A4A)),
-                            foregroundColor: Colors.white,
+                            foregroundColor: Theme.of(context).brightness == Brightness.dark
+                                ? Colors.white
+                                : Colors.black,
                           ),
                           child: Text(timeStr),
                         );

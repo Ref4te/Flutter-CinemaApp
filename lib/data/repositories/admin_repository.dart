@@ -268,6 +268,7 @@ class AdminRepository {
     required MovieItem movie,
     required HallRef hall,
     required List<DateTime> starts,
+    required SessionPrices prices,
     int cleanupMinutes = 20,
   }) async {
     _ensureAdmin();
@@ -313,6 +314,7 @@ class AdminRepository {
         'hallDocId': hall.hallId,
         'hallName': hall.hallName,
         'cleanupMinutes': cleanupMinutes,
+        'prices': prices.toMap(),
         'seats': seats.map((e) => e.toMap()).toList(),
       });
 
@@ -634,4 +636,27 @@ class ExistingSessionSlot {
   final int movieId;
   final DateTime start;
   final DateTime end;
+}
+
+class SessionPrices {
+  const SessionPrices({
+    required this.adult,
+    required this.student,
+    required this.child,
+    required this.vip,
+  });
+
+  final int adult;
+  final int student;
+  final int child;
+  final int vip;
+
+  Map<String, dynamic> toMap() {
+    return {
+      'adult': adult,
+      'student': student,
+      'child': child,
+      'vip': vip,
+    };
+  }
 }

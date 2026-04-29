@@ -242,6 +242,10 @@ class _ScheduleManagementTab extends StatefulWidget {
 
 class _ScheduleManagementTabState extends State<_ScheduleManagementTab> {
   final ScheduleCellsService _cellsService = ScheduleCellsService();
+  final TextEditingController _adultPriceController = TextEditingController(text: '2500');
+  final TextEditingController _studentPriceController = TextEditingController(text: '1800');
+  final TextEditingController _childPriceController = TextEditingController(text: '1200');
+  final TextEditingController _vipPriceController = TextEditingController(text: '5000');
 
   MovieItem? _selectedMovie;
   MovieMeta? _movieMeta;
@@ -254,6 +258,7 @@ class _ScheduleManagementTabState extends State<_ScheduleManagementTab> {
 
   bool _loading = true;
   bool _saving = false;
+  String? _errorMessage;
   String? _selectedCellId;
   Set<String> _conflictCellIds = <String>{};
   final List<List<ScheduleCellItem>> _undoStack = <List<ScheduleCellItem>>[];
@@ -264,25 +269,65 @@ class _ScheduleManagementTabState extends State<_ScheduleManagementTab> {
     _loadInitial();
   }
 
-  Future<void> _loadInitial() async {
-    setState(() => _loading = true);
-    final movies = await widget.adminRepository.loadMovies();
-    final halls = await _loadHallOptions(await FirebaseFirestore.instance.collection('cinemas').get());
-    await _cellsService.ensureGrid(date: _selectedDate, halls: halls.map((e) => e.ref).toList());
-    final grid = await _cellsService.loadGrid(_selectedDate);
+  @override
+  void dispose() {
+    _adultPriceController.dispose();
+    _studentPriceController.dispose();
+    _childPriceController.dispose();
+    _vipPriceController.dispose();
+    super.dispose();
+  }
 
-    if (!mounted) return;
+  Future<void> _loadInitial() async {
     setState(() {
-      _movies = movies;
-      _halls = halls;
-      _grid = grid;
-      _loading = false;
+      _loading = true;
+      _errorMessage = null;
     });
+    try {
+      final movies = await widget.adminRepository.loadMovies();
+      final halls = await _loadHallOptions(await FirebaseFirestore.instance.collection('cinemas').get());
+      await _cellsService.ensureGrid(date: _selectedDate, halls: halls.map((e) => e.ref).toList());
+      final grid = await _cellsService.loadGrid(_selectedDate);
+
+      if (!mounted) return;
+      setState(() {
+        _movies = movies;
+        _halls = halls;
+        _grid = grid;
+        _loading = false;
+      });
+    } on FirebaseException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _errorMessage = e.code == 'permission-denied'
+            ? 'Нет доступа к расписанию. Войдите под админ-аккаунтом.'
+            : 'Ошибка загрузки данных: ${e.message ?? e.code}';
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _errorMessage = 'Не удалось загрузить данные панели администратора.';
+      });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     if (_loading) return const Center(child: CircularProgressIndicator());
+    if (_errorMessage != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Text(
+            _errorMessage!,
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: Colors.redAccent, fontWeight: FontWeight.w600),
+          ),
+        ),
+      );
+    }
 
     final duration = _movieMeta?.durationMinutes ?? _parseDuration(_selectedMovie?.duration ?? '2ч 0м');
     final age = _movieMeta?.ageRating ?? '16+';
@@ -366,6 +411,22 @@ class _ScheduleManagementTabState extends State<_ScheduleManagementTab> {
           if (_selectedMovie != null)
             Text('Возраст: $age • Длительность: ${duration} мин', style: const TextStyle(fontWeight: FontWeight.w600)),
           const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Цены: Взр ${_adultPriceController.text} ₸ • Студ ${_studentPriceController.text} ₸ • Дет ${_childPriceController.text} ₸ • VIP ${_vipPriceController.text} ₸',
+                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+                ),
+              ),
+              TextButton.icon(
+                onPressed: _openPricesDialog,
+                icon: const Icon(Icons.edit_outlined),
+                label: const Text('Изменить цены'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
           Expanded(
             child: ListView(
               children: grouped.entries.map((entry) {
@@ -440,20 +501,32 @@ class _ScheduleManagementTabState extends State<_ScheduleManagementTab> {
           const SizedBox(height: 10),
           Row(
             children: [
-              OutlinedButton.icon(
-                onPressed: _undoStack.isEmpty ? null : _undo,
-                icon: const Icon(Icons.undo),
-                label: const Text('Отменить'),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _undoStack.isEmpty ? null : _undo,
+                  icon: const Icon(Icons.undo),
+                  label: const Text('Отменить'),
+                ),
               ),
               const SizedBox(width: 8),
               Expanded(
-                child: FilledButton.icon(
-                  onPressed: _selectedMovie == null || _saving || _conflictCellIds.isNotEmpty ? null : _saveAll,
-                  icon: const Icon(Icons.save),
-                  label: const Text('Сохранить'),
+                child: OutlinedButton.icon(
+                  onPressed: _saving ? null : _resetSessionsForDate,
+                  icon: const Icon(Icons.restart_alt),
+                  label: const Text('Сброс'),
                 ),
               ),
             ],
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: _selectedMovie == null || _saving || _conflictCellIds.isNotEmpty ? null : _saveAll,
+              icon: const Icon(Icons.save),
+              label: const Text('Сохранить расписание'),
+              style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(48)),
+            ),
           ),
         ],
       ),
@@ -572,12 +645,60 @@ class _ScheduleManagementTabState extends State<_ScheduleManagementTab> {
         movie: _selectedMovie!,
         hall: hallRef,
         starts: hallEntry.value.map((e) => e.startTime).toList(),
+        prices: _readPrices(),
       );
     }
 
     if (!mounted) return;
     setState(() => _saving = false);
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Расписание сохранено')));
+  }
+
+  Future<void> _resetSessionsForDate() async {
+    final shouldReset = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Обнулить сеансы?'),
+        content: const Text('Все сеансы на выбранную дату будут удалены.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Отмена')),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Обнулить')),
+        ],
+      ),
+    );
+
+    if (shouldReset != true) return;
+    setState(() => _saving = true);
+
+    final snapshot = _grid.map((e) => e).toList();
+    _undoStack.add(snapshot);
+
+    final movieIds = _grid
+        .where((cell) => cell.movieId != null)
+        .map((cell) => cell.movieId!)
+        .toSet();
+
+    for (final movieId in movieIds) {
+      await widget.adminRepository.clearMovieScheduleForDate(
+        movieId: movieId,
+        date: _selectedDate,
+      );
+    }
+
+    final clearedGrid = _grid
+        .map((cell) => cell.copyWith(movieId: null, movieTitle: null))
+        .toList();
+
+    await _cellsService.saveGrid(clearedGrid);
+
+    if (!mounted) return;
+    setState(() {
+      _grid = clearedGrid;
+      _saving = false;
+      _selectedCellId = null;
+      _conflictCellIds = <String>{};
+    });
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Сеансы обнулены')));
   }
 
   Future<List<_HallOption>> _loadHallOptions(QuerySnapshot<Map<String, dynamic>> cinemasSnapshot) async {
@@ -621,6 +742,94 @@ class _ScheduleManagementTabState extends State<_ScheduleManagementTab> {
   }
 
   String _formatTime(DateTime date) => '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+
+  Widget _buildPriceField(TextEditingController controller, String label) {
+    return TextFormField(
+      controller: controller,
+      keyboardType: TextInputType.number,
+      decoration: InputDecoration(
+        labelText: '$label (₸)',
+        border: const OutlineInputBorder(),
+        isDense: true,
+      ),
+    );
+  }
+
+  SessionPrices _readPrices() {
+    int parse(TextEditingController controller, int fallback) {
+      final value = int.tryParse(controller.text.trim());
+      if (value == null || value < 0) return fallback;
+      return value;
+    }
+
+    return SessionPrices(
+      adult: parse(_adultPriceController, 2500),
+      student: parse(_studentPriceController, 1800),
+      child: parse(_childPriceController, 1200),
+      vip: parse(_vipPriceController, 5000),
+    );
+  }
+
+  Future<void> _openPricesDialog() async {
+    String adult = _adultPriceController.text;
+    String student = _studentPriceController.text;
+    String child = _childPriceController.text;
+    String vip = _vipPriceController.text;
+
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Изменить цены билетов'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextFormField(
+                initialValue: adult,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(labelText: 'Взрослый (₸)', border: OutlineInputBorder(), isDense: true),
+                onChanged: (value) => adult = value,
+              ),
+              const SizedBox(height: 8),
+              TextFormField(
+                initialValue: student,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(labelText: 'Студенческий (₸)', border: OutlineInputBorder(), isDense: true),
+                onChanged: (value) => student = value,
+              ),
+              const SizedBox(height: 8),
+              TextFormField(
+                initialValue: child,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(labelText: 'Детский (₸)', border: OutlineInputBorder(), isDense: true),
+                onChanged: (value) => child = value,
+              ),
+              const SizedBox(height: 8),
+              TextFormField(
+                initialValue: vip,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(labelText: 'VIP (₸)', border: OutlineInputBorder(), isDense: true),
+                onChanged: (value) => vip = value,
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Отмена')),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Сохранить')),
+        ],
+      ),
+    );
+
+    if (saved == true) {
+      setState(() {
+        _adultPriceController.text = adult;
+        _studentPriceController.text = student;
+        _childPriceController.text = child;
+        _vipPriceController.text = vip;
+      });
+    }
+  }
 
   int _parseDuration(String durationStr) {
     final hoursMatch = RegExp(r'(\d+)ч').firstMatch(durationStr);

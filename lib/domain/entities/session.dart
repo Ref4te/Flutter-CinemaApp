@@ -45,6 +45,7 @@ class MovieSession {
   final String cinemaName;
   final int hallId;
   final List<Seat> seats;
+  final Map<String, int> prices;
 
   MovieSession({
     required this.id,
@@ -55,6 +56,7 @@ class MovieSession {
     required this.cinemaName,
     required this.hallId,
     required this.seats,
+    required this.prices,
   });
 
   Map<String, dynamic> toMap() {
@@ -66,6 +68,7 @@ class MovieSession {
       'cinemaName': cinemaName,
       'hallId': hallId,
       'seats': seats.map((s) => s.toMap()).toList(),
+      'prices': prices,
     };
   }
 
@@ -94,6 +97,12 @@ class MovieSession {
       seats: (data['seats'] as List? ?? [])
           .map((s) => Seat.fromMap(s as Map<String, dynamic>))
           .toList(),
+      prices: {
+        'adult': (data['prices']?['adult'] as num?)?.toInt() ?? 2500,
+        'student': (data['prices']?['student'] as num?)?.toInt() ?? 1800,
+        'child': (data['prices']?['child'] as num?)?.toInt() ?? 1200,
+        'vip': (data['prices']?['vip'] as num?)?.toInt() ?? 5000,
+      },
     );
   }
 }

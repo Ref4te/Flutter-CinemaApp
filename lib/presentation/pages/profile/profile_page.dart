@@ -34,7 +34,9 @@ class ProfilePage extends StatelessWidget {
 
     final User? user = FirebaseAuth.instance.currentUser;
 
-    final String fullName = user?.displayName ?? 'Guest User';
+    final String login = (user?.email?.split('@').first?.trim().isNotEmpty ?? false)
+        ? user!.email!.split('@').first
+        : 'guest';
     final String email = user?.email ?? 'No email provided';
 
     return ValueListenableBuilder<String>(
@@ -76,7 +78,7 @@ class ProfilePage extends StatelessWidget {
                     ),
                     const SizedBox(height: 12),
                     Text(
-                      fullName,
+                      login,
                       style: TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.w600,

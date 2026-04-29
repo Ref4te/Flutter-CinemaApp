@@ -29,12 +29,17 @@ class _SeatSelectionScreenState extends State<SeatSelectionScreen> {
   String _activeTariff = 'Взрослый';
   _BottomPanelMode _bottomPanelMode = _BottomPanelMode.hidden;
 
-  void _focusSeat(Seat seat) {
+  void _focusSeat(Seat seat, Map<String, int> prices) {
     if (!seat.isAvailable) return;
+    final availableTariffs = <String>[
+      if ((prices['child'] ?? 0) > 0) 'Детский',
+      if ((prices['student'] ?? 0) > 0) 'Студенческий',
+      if ((prices['adult'] ?? 0) > 0) 'Взрослый',
+    ];
     
     setState(() {
       _focusedSeatId = seat.id;
-      _activeTariff = _selectedSeats[seat.id] ?? 'Взрослый';
+      _activeTariff = _selectedSeats[seat.id] ?? (availableTariffs.isNotEmpty ? availableTariffs.last : 'Взрослый');
       _bottomPanelMode = _BottomPanelMode.seatInfo;
     });
   }
@@ -55,21 +60,21 @@ class _SeatSelectionScreenState extends State<SeatSelectionScreen> {
     });
   }
 
-  int _calculatePrice(Seat seat, String tariff) {
-    if (seat.isVip) return 5000;
+  int _calculatePrice(Seat seat, String tariff, Map<String, int> prices) {
+    if (seat.isVip) return prices['vip'] ?? 5000;
     switch (tariff) {
-      case 'Детский': return 1200;
-      case 'Студенческий': return 1800;
-      case 'Взрослый': return 2500;
-      default: return 2500;
+      case 'Детский': return prices['child'] ?? 1200;
+      case 'Студенческий': return prices['student'] ?? 1800;
+      case 'Взрослый': return prices['adult'] ?? 2500;
+      default: return prices['adult'] ?? 2500;
     }
   }
 
-  int _getTotalPrice(List<Seat> allSeats) {
+  int _getTotalPrice(List<Seat> allSeats, Map<String, int> prices) {
     int total = 0;
     _selectedSeats.forEach((seatId, tariff) {
       final seat = allSeats.firstWhere((s) => s.id == seatId);
-      total += _calculatePrice(seat, tariff);
+      total += _calculatePrice(seat, tariff, prices);
     });
     return total;
   }
@@ -100,6 +105,13 @@ class _SeatSelectionScreenState extends State<SeatSelectionScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF0F0F0F) : const Color(0xFFF4F4F4);
+    final appBarColor = isDark ? const Color(0xFF151515) : Colors.white;
+    final appBarText = isDark ? Colors.white : const Color(0xFF1A1A1A);
+    final bottomPanelColor = isDark ? const Color(0xFF151515) : Colors.white;
+    final bottomShadow = isDark ? Colors.black54 : const Color(0x22000000);
+
     final bottomInset = MediaQuery.of(context).padding.bottom;
     final hasBottomPanel = _bottomPanelMode != _BottomPanelMode.hidden;
     final bottomOffset = hasBottomPanel ? 210 + bottomInset : 0.0;
@@ -120,7 +132,13 @@ class _SeatSelectionScreenState extends State<SeatSelectionScreen> {
             : null;
 
         return Scaffold(
-          appBar: AppBar(title: const Text('Выбор мест'), centerTitle: true),
+          backgroundColor: bgColor,
+          appBar: AppBar(
+            title: const Text('Выбор мест'),
+            centerTitle: true,
+            backgroundColor: appBarColor,
+            foregroundColor: appBarText,
+          ),
           body: Stack(
             children: [
               Padding(
@@ -134,7 +152,7 @@ class _SeatSelectionScreenState extends State<SeatSelectionScreen> {
                       children: [
                         const _ScreenArc(),
                         const SizedBox(height: 28),
-                        _buildSeatGrid(session.seats),
+                        _buildSeatGrid(session.seats, session.prices),
                       ],
                     ),
                   ),
@@ -145,17 +163,17 @@ class _SeatSelectionScreenState extends State<SeatSelectionScreen> {
                   alignment: Alignment.bottomCenter,
                   child: Container(
                     padding: EdgeInsets.fromLTRB(14, 10, 14, 10 + bottomInset),
-                    decoration: const BoxDecoration(
-                      color: Color(0xFF151515),
-                      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-                      boxShadow: [BoxShadow(color: Colors.black54, blurRadius: 14, offset: Offset(0, -5))],
+                    decoration: BoxDecoration(
+                      color: bottomPanelColor,
+                      borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+                      boxShadow: [BoxShadow(color: bottomShadow, blurRadius: 14, offset: const Offset(0, -5))],
                     ),
                     child: SafeArea(
                       top: false,
                       child: AnimatedSwitcher(
                         duration: const Duration(milliseconds: 200),
                         child: _bottomPanelMode == _BottomPanelMode.seatInfo && focusedSeat != null
-                            ? _buildSeatInfoPanel(focusedSeat)
+                            ? _buildSeatInfoPanel(focusedSeat, session.prices)
                             : _buildCartPanel(session),
                       ),
                     ),
@@ -168,7 +186,7 @@ class _SeatSelectionScreenState extends State<SeatSelectionScreen> {
     );
   }
 
-  Widget _buildSeatGrid(List<Seat> seats) {
+  Widget _buildSeatGrid(List<Seat> seats, Map<String, int> prices) {
     final maxRow = seats.map((s) => s.row).fold(0, (prev, curr) => curr > prev ? curr : prev);
     
     return Column(
@@ -184,7 +202,7 @@ class _SeatSelectionScreenState extends State<SeatSelectionScreen> {
               return _SeatWidget(
                 seat: seat,
                 isSelected: _selectedSeats.containsKey(seat.id),
-                onTap: () => _focusSeat(seat),
+                onTap: () => _focusSeat(seat, prices),
               );
             }).toList(),
           ),
@@ -193,8 +211,13 @@ class _SeatSelectionScreenState extends State<SeatSelectionScreen> {
     );
   }
 
-  Widget _buildSeatInfoPanel(Seat seat) {
-    final tariffs = ['Детский', 'Студенческий', 'Взрослый'];
+  Widget _buildSeatInfoPanel(Seat seat, Map<String, int> prices) {
+    final tariffs = <String>[
+      if ((prices['child'] ?? 0) > 0) 'Детский',
+      if ((prices['student'] ?? 0) > 0) 'Студенческий',
+      if ((prices['adult'] ?? 0) > 0) 'Взрослый',
+    ];
+    final canBookVip = (prices['vip'] ?? 0) > 0;
     return Column(
       key: const ValueKey('seat-info-panel'),
       mainAxisSize: MainAxisSize.min,
@@ -205,24 +228,27 @@ class _SeatSelectionScreenState extends State<SeatSelectionScreen> {
           style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
         ),
         const SizedBox(height: 10),
-        const Text('Тариф', style: TextStyle(color: Color(0xFFB7B7B7), fontWeight: FontWeight.w600)),
-        const SizedBox(height: 8),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: tariffs.map((t) {
-            return ChoiceChip(
-              selected: _activeTariff == t,
-              label: Text('$t • ${_calculatePrice(seat, t)} ₸'),
-              onSelected: (_) => setState(() => _activeTariff = t),
-            );
-          }).toList(),
-        ),
+        if (!seat.isVip) ...[
+          const Text('Тариф', style: TextStyle(color: Color(0xFFB7B7B7), fontWeight: FontWeight.w600)),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: tariffs.map((t) {
+              return ChoiceChip(
+                selected: _activeTariff == t,
+                label: Text('$t • ${_calculatePrice(seat, t, prices)} ₸'),
+                onSelected: (_) => setState(() => _activeTariff = t),
+              );
+            }).toList(),
+          ),
+        ] else
+          Text('VIP • ${prices['vip'] ?? 5000} ₸', style: const TextStyle(fontWeight: FontWeight.w600)),
         const SizedBox(height: 12),
         SizedBox(
           width: double.infinity,
           child: ElevatedButton(
-            onPressed: () => _addFocusedSeat(seat),
+            onPressed: seat.isVip ? (canBookVip ? () => _addFocusedSeat(seat) : null) : (tariffs.isEmpty ? null : () => _addFocusedSeat(seat)),
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFFE53935),
               foregroundColor: Colors.white,
@@ -243,13 +269,16 @@ class _SeatSelectionScreenState extends State<SeatSelectionScreen> {
   }
 
   Widget _buildCartPanel(MovieSession session) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final chipBg = isDark ? const Color(0xFF262626) : const Color(0xFFEFEFEF);
+    final chipText = isDark ? Colors.white : const Color(0xFF1A1A1A);
     return Column(
       key: const ValueKey('cart-panel'),
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          '${_selectedSeats.length} билет(ов) • ${_getTotalPrice(session.seats)} ₸',
+          '${_selectedSeats.length} билет(ов) • ${_getTotalPrice(session.seats, session.prices)} ₸',
           style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
         ),
         const SizedBox(height: 10),
@@ -263,9 +292,9 @@ class _SeatSelectionScreenState extends State<SeatSelectionScreen> {
               return Container(
                 margin: const EdgeInsets.only(right: 8),
                 child: Chip(
-                  backgroundColor: const Color(0xFF262626),
-                  label: Text('Р${seat.row}-М${seat.column}'),
-                  deleteIcon: const Icon(Icons.close, size: 16),
+                  backgroundColor: chipBg,
+                  label: Text('Р${seat.row}-М${seat.column}', style: TextStyle(color: chipText)),
+                  deleteIcon: Icon(Icons.close, size: 16, color: chipText),
                   onDeleted: () => _removeSeat(seatId),
                 ),
               );
