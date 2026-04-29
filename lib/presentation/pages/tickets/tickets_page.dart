@@ -49,6 +49,7 @@ class TicketsPage extends StatelessWidget {
                   '${startTime.hour.toString().padLeft(2, '0')}:${startTime.minute.toString().padLeft(2, '0')}';
 
               final List<dynamic> bookedSeats = ticket['seats'] ?? [];
+              final isPast = startTime.isBefore(DateTime.now());
 
               return Container(
                 margin: const EdgeInsets.only(bottom: 14),
@@ -68,7 +69,11 @@ class TicketsPage extends StatelessWidget {
                         Expanded(
                           child: Text(
                             ticket['movieTitle'] ?? 'Билет',
-                            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w600,
+                              color: isPast ? Colors.redAccent : null,
+                            ),
                           ),
                         ),
                       ],
@@ -77,7 +82,11 @@ class TicketsPage extends StatelessWidget {
                     _TicketInfoRow(label: 'Кинотеатр', value: ticket['cinemaName'] ?? '—'),
                     _TicketInfoRow(label: 'Адрес', value: ticket['cinemaAddress'] ?? '—'),
                     _TicketInfoRow(label: 'Зал', value: 'Зал ${ticket['hallId']}'),
-                    _TicketInfoRow(label: 'Сеанс', value: '$dateStr в $timeStr'),
+                    _TicketInfoRow(
+                      label: 'Сеанс',
+                      value: '$dateStr в $timeStr',
+                      valueColor: isPast ? Colors.redAccent : null,
+                    ),
                     const SizedBox(height: 8),
                     const Text(
                       'Места:',
@@ -125,10 +134,11 @@ class TicketsPage extends StatelessWidget {
 }
 
 class _TicketInfoRow extends StatelessWidget {
-  const _TicketInfoRow({required this.label, required this.value});
+  const _TicketInfoRow({required this.label, required this.value, this.valueColor});
 
   final String label;
   final String value;
+  final Color? valueColor;
 
   @override
   Widget build(BuildContext context) {
@@ -143,7 +153,7 @@ class _TicketInfoRow extends StatelessWidget {
               style: const TextStyle(color: Color(0xFF9A9A9A)),
             ),
           ),
-          Expanded(child: Text(value)),
+          Expanded(child: Text(value, style: TextStyle(color: valueColor))),
         ],
       ),
     );
