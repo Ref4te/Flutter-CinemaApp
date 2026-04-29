@@ -258,6 +258,7 @@ class _ScheduleManagementTabState extends State<_ScheduleManagementTab> {
 
   bool _loading = true;
   bool _saving = false;
+  String? _errorMessage;
   String? _selectedCellId;
   Set<String> _conflictCellIds = <String>{};
   final List<List<ScheduleCellItem>> _undoStack = <List<ScheduleCellItem>>[];
@@ -278,24 +279,55 @@ class _ScheduleManagementTabState extends State<_ScheduleManagementTab> {
   }
 
   Future<void> _loadInitial() async {
-    setState(() => _loading = true);
-    final movies = await widget.adminRepository.loadMovies();
-    final halls = await _loadHallOptions(await FirebaseFirestore.instance.collection('cinemas').get());
-    await _cellsService.ensureGrid(date: _selectedDate, halls: halls.map((e) => e.ref).toList());
-    final grid = await _cellsService.loadGrid(_selectedDate);
-
-    if (!mounted) return;
     setState(() {
-      _movies = movies;
-      _halls = halls;
-      _grid = grid;
-      _loading = false;
+      _loading = true;
+      _errorMessage = null;
     });
+    try {
+      final movies = await widget.adminRepository.loadMovies();
+      final halls = await _loadHallOptions(await FirebaseFirestore.instance.collection('cinemas').get());
+      await _cellsService.ensureGrid(date: _selectedDate, halls: halls.map((e) => e.ref).toList());
+      final grid = await _cellsService.loadGrid(_selectedDate);
+
+      if (!mounted) return;
+      setState(() {
+        _movies = movies;
+        _halls = halls;
+        _grid = grid;
+        _loading = false;
+      });
+    } on FirebaseException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _errorMessage = e.code == 'permission-denied'
+            ? 'Нет доступа к расписанию. Войдите под админ-аккаунтом.'
+            : 'Ошибка загрузки данных: ${e.message ?? e.code}';
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _errorMessage = 'Не удалось загрузить данные панели администратора.';
+      });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     if (_loading) return const Center(child: CircularProgressIndicator());
+    if (_errorMessage != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Text(
+            _errorMessage!,
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: Colors.redAccent, fontWeight: FontWeight.w600),
+          ),
+        ),
+      );
+    }
 
     final duration = _movieMeta?.durationMinutes ?? _parseDuration(_selectedMovie?.duration ?? '2ч 0м');
     final age = _movieMeta?.ageRating ?? '16+';
