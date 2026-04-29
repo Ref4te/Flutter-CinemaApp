@@ -14,7 +14,7 @@ class TmdbRepository {
     final lang = AppSettings.language.value;
 
     if (lang == 'Қазақша') {
-      return 'ru-RU'; // fallback вместо kk-KZ
+      return 'ru-RU';
     }
 
     if (lang == 'English') {
@@ -27,7 +27,7 @@ class TmdbRepository {
   Future<TmdbHomeData> loadHomeData() async {
     if (_apiKey.isEmpty) {
       throw Exception(
-        'TMDb API key не найден. Передайте ключ через --dart-define=TMDB_API_KEY=... ',
+        'TMDb API key не найден.',
       );
     }
 
