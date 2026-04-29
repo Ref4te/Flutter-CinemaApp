@@ -380,11 +380,13 @@ class _ScreenArc extends StatelessWidget {
       height: 40,
       child: CustomPaint(
         painter: _ScreenPainter(),
-        child: const Center(
+        child: Center(
           child: Text(
             'ЭКРАН',
             style: TextStyle(
-              color: Colors.white54,
+              color: Theme.of(context).brightness == Brightness.dark
+                  ? Colors.white54
+                  : Colors.black54,
               fontSize: 12,
               fontWeight: FontWeight.bold,
               letterSpacing: 8,
