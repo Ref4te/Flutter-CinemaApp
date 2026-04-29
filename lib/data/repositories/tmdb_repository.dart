@@ -36,35 +36,40 @@ class TmdbRepository {
         '${todayDate.year.toString().padLeft(4, '0')}-${todayDate.month.toString().padLeft(2, '0')}-${todayDate.day.toString().padLeft(2, '0')}';
 
     final genreMap = await _loadGenres();
-    final discoverPage1Response = await _getJson(
-      '/discover/movie',
-      extraQuery: '&region=KZ&sort_by=popularity.desc&include_adult=false',
+    final nowPlayingPage1Response = await _getJson(
+      '/movie/now_playing',
+      extraQuery: '&region=KZ&page=1',
     );
-    final discoverPage2Response = await _getJson(
-      '/discover/movie',
-      extraQuery: '&region=KZ&sort_by=popularity.desc&include_adult=false&page=2',
+    final nowPlayingPage2Response = await _getJson(
+      '/movie/now_playing',
+      extraQuery: '&region=KZ&page=2',
     );
     final upcomingPage1Response = await _getJson(
+      '/movie/upcoming',
+      extraQuery: '&region=KZ&page=1',
+    );
+    final upcomingPage2Response = await _getJson(
+      '/movie/upcoming',
+      extraQuery: '&region=KZ&page=2',
+    );
+    final discoverFallbackResponse = await _getJson(
       '/discover/movie',
       extraQuery:
           '&include_adult=false&sort_by=popularity.desc&release_date.gte=$todayDateString&with_release_type=2|3|4|5&page=1',
     );
-    final upcomingPage2Response = await _getJson(
-      '/discover/movie',
-      extraQuery:
-          '&include_adult=false&sort_by=popularity.desc&release_date.gte=$todayDateString&with_release_type=2|3|4|5&page=2',
-    );
     final trendingResponse = await _getJson('/trending/movie/week');
 
-    final rawDiscoverPage1Movies =
-    (discoverPage1Response['results'] as List<dynamic>? ?? [])
+    final rawNowPlayingPage1Movies =
+    (nowPlayingPage1Response['results'] as List<dynamic>? ?? [])
         .cast<Map<String, dynamic>>();
-    final rawDiscoverPage2Movies =
-    (discoverPage2Response['results'] as List<dynamic>? ?? [])
+    final rawNowPlayingPage2Movies =
+    (nowPlayingPage2Response['results'] as List<dynamic>? ?? [])
         .cast<Map<String, dynamic>>();
     final rawUpcomingPage1Movies = (upcomingPage1Response['results'] as List<dynamic>? ?? [])
         .cast<Map<String, dynamic>>();
     final rawUpcomingPage2Movies = (upcomingPage2Response['results'] as List<dynamic>? ?? [])
+        .cast<Map<String, dynamic>>();
+    final rawDiscoverFallbackMovies = (discoverFallbackResponse['results'] as List<dynamic>? ?? [])
         .cast<Map<String, dynamic>>();
     final rawBanners = (trendingResponse['results'] as List<dynamic>? ?? [])
         .cast<Map<String, dynamic>>();
@@ -72,8 +77,9 @@ class TmdbRepository {
     final combinedMovies = <Map<String, dynamic>>[
       ...rawUpcomingPage1Movies,
       ...rawUpcomingPage2Movies,
-      ...rawDiscoverPage1Movies,
-      ...rawDiscoverPage2Movies,
+      ...rawNowPlayingPage1Movies,
+      ...rawNowPlayingPage2Movies,
+      ...rawDiscoverFallbackMovies,
     ];
 
     final uniqueMoviesById = <int, Map<String, dynamic>>{};
